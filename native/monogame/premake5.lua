@@ -67,6 +67,28 @@ function vulkan()
     filter {}
 end
 
+-- Metal is supported for Mac and iOS
+function metal()
+   
+   defines { "MG_METAL" }
+
+   files 
+   { 
+      "metal/**.h",
+      "metal/**.cpp",
+      "metal/**.mm",
+   }
+
+   filter { "system:macosx" }
+      links 
+      { 
+         "Metal",
+         "MetalKit",
+         "QuartzCore",
+      }
+
+end
+
 -- DirectX12 is supported on Xbox and Windows.
 function directx12()
     defines {"MG_DIRECTX12"}
@@ -128,3 +150,13 @@ if os.target() == "windows" then
     xaudio()
     configs()
 end
+
+if os.target() == "macosx" then
+   project "metal"
+   common("metal")
+   sdl2()
+   metal()
+   faudio()
+   configs()
+end
+   
