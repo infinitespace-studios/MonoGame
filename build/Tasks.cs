@@ -6,11 +6,13 @@ namespace BuildScripts;
 [IsDependentOn(typeof(BuildShadersDX12Task))]
 [IsDependentOn(typeof(BuildShadersOGLTask))]
 [IsDependentOn(typeof(BuildShadersVulkanTask))]
+[IsDependentOn(typeof(BuildShadersMetalTask))]
 public sealed class BuildShadersTask : FrostingTask<BuildContext> { }
 
 [TaskName("Build Frameworks")]
 [IsDependentOn(typeof(BuildNativeTask))]
 [IsDependentOn(typeof(BuildDesktopVKTask))]
+[IsDependentOn(typeof(BuildDesktopMetalTask))]
 [IsDependentOn(typeof(BuildDesktopGLTask))]
 [IsDependentOn(typeof(BuildWindowsDXTask))]
 [IsDependentOn(typeof(BuildAndroidTask))]

@@ -702,7 +702,7 @@ MGP_Window* MGP_Window_Create(
 
 	Uint32 flags = SDL_WINDOW_HIDDEN;// | SDL_WINDOW_FULLSCREEN_DESKTOP;
 
-#if defined(MG_VULKAN) || defined(MG_DIRECTX12)
+#if defined(MG_VULKAN) || defined(MG_DIRECTX12) || defined(MG_METAL)
 	flags |= SDL_WINDOW_VULKAN;
 #else
 	#error Not implemented

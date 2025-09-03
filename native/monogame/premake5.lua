@@ -82,11 +82,11 @@ function metal()
    filter { "system:macosx" }
       links 
       { 
-         "Metal",
-         "MetalKit",
-         "QuartzCore",
+         "Metal.framework",
+         "MetalKit.framework",
+         "QuartzCore.framework",
       }
-
+   filter {}
 end
 
 -- DirectX12 is supported on Xbox and Windows.
