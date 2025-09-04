@@ -13,7 +13,7 @@ namespace MonoGame.Effect
     class MetalShaderProfile : ShaderProfile
     {
         public MetalShaderProfile()
-            : base("Metal", 80)
+            : base("Metal", 5)
         {
         }
 

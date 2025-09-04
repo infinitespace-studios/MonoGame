@@ -40,11 +40,11 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "Build: mgcb",
-            "program": "${workspaceFolder}/Artifacts/MonoGame.Content.Builder/Debug/mgfxc",
+            "program": "${workspaceFolder}/Artifacts/MonoGame.Effect.Compiler/Debug/mgfxc",
             "args": [
                 "${workspaceFolder}/Artifacts/Tests/DesktopGL/Debug/Assets/Effects/Grayscale.fx",
-                "{workspaceFolder}/Artifacts/Tests/DesktopGL/Debug/Assets/Effects/Grayscale.mgfxo",
-                "/Profile:DirectX_11"
+                "${workspaceFolder}/Artifacts/Tests/DesktopGL/Debug/Assets/Effects/Grayscale.mgfxo",
+                "/Profile:Metal"
             ],
             "console": "internalConsole",
             "stopAtEntry": false

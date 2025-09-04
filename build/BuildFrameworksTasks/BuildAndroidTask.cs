@@ -11,7 +11,8 @@ public sealed class BuildAndroidTask : FrostingTask<BuildContext>
     public override void Run(BuildContext context)
     {
         var arguments = new DotNetMSBuildSettings();
-        arguments.WithProperty("AndroidSdkDirectory", System.Environment.GetEnvironmentVariable ("ANDROID_HOME"));
+        var androidSdkPath = context.EnvironmentVariable("ANDROID_SDK_ROOT");
+        arguments.WithProperty("AndroidSdkDirectory", androidSdkPath);
         arguments.WithProperty("AcceptAndroidSDKLicenses", "true");
         arguments.WithTarget("InstallAndroidDependencies");
         var installSettings = new DotNetBuildSettings
@@ -21,7 +22,10 @@ public sealed class BuildAndroidTask : FrostingTask<BuildContext>
             Configuration = context.DotNetPackSettings.Configuration,
         };
 
-        context.DotNetBuild(context.GetProjectPath(ProjectType.Framework, platformName), installSettings);
+        if (!Directory.Exists(androidSdkPath))
+        {
+            context.DotNetBuild(context.GetProjectPath(ProjectType.Framework, platformName), installSettings);
+        }
         context.DotNetPack(context.GetProjectPath(ProjectType.Framework, platformName), context.DotNetPackSettings);
     }
 }

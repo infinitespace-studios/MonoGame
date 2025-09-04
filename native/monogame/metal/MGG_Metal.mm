@@ -25,45 +25,13 @@
 #import <Foundation/Foundation.h>
 #endif
 
-// Stub builtin effects - TODO: Create proper Metal shader bytecode
-static const uint8_t AlphaTestEffect_metal_mgfxo[] = { 0 };
-static const uint8_t BasicEffect_metal_mgfxo[] = { 0 };
-static const uint8_t DualTextureEffect_metal_mgfxo[] = { 0 };
-static const uint8_t EnvironmentMapEffect_metal_mgfxo[] = { 0 };
-static const uint8_t SkinnedEffect_metal_mgfxo[] = { 0 };
-static const uint8_t SpriteEffect_metal_mgfxo[] = { 0 };
-
-void MGG_EffectResource_GetBytecode(const char* name, mgbyte*& bytecode, mgint& size)
-{
-    if (strcmp(name, "AlphaTestEffect") == 0) {
-        bytecode = (mgbyte*)AlphaTestEffect_metal_mgfxo;
-        size = sizeof(AlphaTestEffect_metal_mgfxo);
-    }
-    else if (strcmp(name, "BasicEffect") == 0) {
-        bytecode = (mgbyte*)BasicEffect_metal_mgfxo;
-        size = sizeof(BasicEffect_metal_mgfxo);
-    }
-    else if (strcmp(name, "DualTextureEffect") == 0) {
-        bytecode = (mgbyte*)DualTextureEffect_metal_mgfxo;
-        size = sizeof(DualTextureEffect_metal_mgfxo);
-    }
-    else if (strcmp(name, "EnvironmentMapEffect") == 0) {
-        bytecode = (mgbyte*)EnvironmentMapEffect_metal_mgfxo;
-        size = sizeof(EnvironmentMapEffect_metal_mgfxo);
-    }
-    else if (strcmp(name, "SkinnedEffect") == 0) {
-        bytecode = (mgbyte*)SkinnedEffect_metal_mgfxo;
-        size = sizeof(SkinnedEffect_metal_mgfxo);
-    }
-    else if (strcmp(name, "SpriteEffect") == 0) {
-        bytecode = (mgbyte*)SpriteEffect_metal_mgfxo;
-        size = sizeof(SpriteEffect_metal_mgfxo);
-    }
-    else {
-        bytecode = nullptr;
-        size = 0;
-    }
-}
+#include "AlphaTestEffect.mtl.mgfxo.h"
+#include "BasicEffect.mtl.mgfxo.h"
+#include "DualTextureEffect.mtl.mgfxo.h"
+#include "EnvironmentMapEffect.mtl.mgfxo.h"
+#include "SkinnedEffect.mtl.mgfxo.h"
+#include "SpriteEffect.mtl.mgfxo.h"
+#include "mg_effect.h"
 
 // Enhanced structures using proper Metal objects
 struct MGG_GraphicsAdapter
