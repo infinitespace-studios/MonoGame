@@ -1095,7 +1095,7 @@ void MGG_Buffer_SetData(MGG_GraphicsDevice* device, MGG_Buffer*& buffer, mgint o
             memcpy(static_cast<uint8_t*>(bufferContents) + offset, data, totalBytes);
             
             // Notify Metal about the modified range
-            [buffer->buffer didModifyRange:NSMakeRange(offset, totalBytes)];
+            //[buffer->buffer didModifyRange:NSMakeRange(offset, totalBytes)];
         }
     }
 #endif
@@ -1278,7 +1278,14 @@ void MGG_Texture_Destroy(MGG_GraphicsDevice* device, MGG_Texture* texture)
 void MGG_Texture_SetData(MGG_GraphicsDevice* device, MGG_Texture* texture, mgint level, mgint slice, mgint x, mgint y, mgint z, mgint width, mgint height, mgint depth, mgbyte* data, mgint dataBytes) 
 {
     if (!device || !texture || !data) return;
-    
+
+    assert(level >= 0);
+	assert(slice >= 0);
+	assert(x >= 0);
+	assert(y >= 0);
+	assert(z >= 0);
+    assert(depth >= 0);
+
 #ifdef __APPLE__
     if (texture->texture) {
         MTLRegion region = MTLRegionMake3D(x, y, z, width, height, depth);
@@ -1666,7 +1673,10 @@ MGG_Shader* MGG_Shader_Create(MGG_GraphicsDevice* device, MGShaderStage stage, m
         id<MTLLibrary> library = [device->device newLibraryWithData:dispatchData error:&error];
         if (!library) {
             if (error) {
-                printf("Metal: Failed to create shader library: %s\n", [[error localizedDescription] UTF8String]);
+                printf("Metal: Failed to create shader library: %s\nStage: %s\nShader bytecode: %s\n", 
+                       [[error localizedDescription] UTF8String], 
+                       (stage == MGShaderStage::Vertex) ? "Vertex" : "Fragment",
+                       reinterpret_cast<const char*>(bytecode));
             }
             delete shader;
             return nullptr;

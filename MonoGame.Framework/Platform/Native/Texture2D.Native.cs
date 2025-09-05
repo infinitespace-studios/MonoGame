@@ -56,9 +56,9 @@ public partial class Texture2D : Texture
                 0,
                 0,
                 0,
-                0,
-                0,
-                0,
+                this.Width,
+                this.Height,
+                1,
                 (byte*)dataPtr,
                 elementSizeInByte * elementCount);
         }

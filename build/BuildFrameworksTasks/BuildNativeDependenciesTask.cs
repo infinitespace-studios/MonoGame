@@ -8,6 +8,7 @@ public sealed class BuildNativeDependenciesTask : FrostingTask<BuildContext>
     {
         var sdlSourceDir = "native/monogame/external/sdl2/sdl";
         var sdlBuildDir = System.IO.Path.Combine(sdlSourceDir, "build");
+        var buildConfiguration = context.Argument("build-configuration", "Release");
 
         if (context.DirectoryExists(sdlBuildDir))
         {
@@ -47,7 +48,7 @@ public sealed class BuildNativeDependenciesTask : FrostingTask<BuildContext>
         var buildSettings = new ProcessSettings { WorkingDirectory = sdlBuildDir };
         var buildArgs = new ProcessArgumentBuilder();
         buildArgs.Append("--build .");
-        buildArgs.Append("--config Release");
+        buildArgs.Append($"--config {buildConfiguration.ToLower(CultureInfo.InvariantCulture)}");
         buildArgs.Append("--parallel");
 
         buildSettings.Arguments = buildArgs;

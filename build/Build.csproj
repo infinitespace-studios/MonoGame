@@ -27,6 +27,7 @@
     <Using Include="Cake.Core.Diagnostics" />
     <Using Include="Cake.Core.IO" />
     <Using Include="Cake.FileHelpers" />
+    <Using Include="System.Globalization" />
   </ItemGroup>
 
   <ItemGroup>

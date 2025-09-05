@@ -11,7 +11,7 @@ using Microsoft.Xna.Framework.Graphics;
 
 namespace MonoGame.Effect
 {
-	    internal partial class ShaderData
+    internal partial class ShaderData
     {
         private const int _SUCCESS_RETURN_CODE = 0;
 
@@ -38,13 +38,15 @@ namespace MonoGame.Effect
                     throw new Exception($"SpirV output is missing {spirvFile}");
                 }
 
-                shaderData.MetalOutputFile = Path.ChangeExtension(shaderData.SpirVOutputFile, ".msl");
+                shaderData.MetalOutputFile = Path.ChangeExtension(shaderData.SpirVOutputFile, ".metal");
+                shaderData.MetalIntermediateFile = Path.ChangeExtension(shaderData.SpirVOutputFile, ".air");
+                shaderData.MetalLibraryFile = Path.ChangeExtension(shaderData.SpirVOutputFile, ".metallib");
                 var reflectionFile = Path.ChangeExtension(shaderData.SpirVOutputFile, ".json");
-                
+
                 var additionalOptions =
                     $"--rename-entry-point {shaderFunctionName} main {(isVertexShader ? "vert" : "frag")} " +
                     $"";
-                    
+
                 // First, generate reflection data to extract constant buffer information
                 if (ExternalTool.Run(spirVCrossTool,
                         $"--reflect --output {reflectionFile} {spirvFile}",
@@ -53,19 +55,19 @@ namespace MonoGame.Effect
                 {
                     // Parse the reflection data to extract constant buffer and sampler info
                     var reflectionJson = File.ReadAllText(reflectionFile);
-                    
+
                     // Parse constant buffers from SPIR-V reflection
                     var parsedBuffers = ConstantBufferData.ParseSpirvReflection(reflectionJson);
                     cbuffers.AddRange(parsedBuffers);
-                    
+
                     // Parse samplers from SPIR-V reflection 
                     var parsedSamplers = ParseSamplersFromReflection(reflectionJson, samplerStates);
                     shaderData._samplers = parsedSamplers.ToArray();
-                    
+
                     // Parse vertex attributes from SPIR-V reflection (only for vertex shaders)
                     var parsedAttributes = ParseAttributesFromReflection(reflectionJson, isVertexShader);
                     shaderData._attributes = parsedAttributes.ToArray();
-                    
+
                     // Clean up reflection file if not debugging
                     if (!debug)
                         File.Delete(reflectionFile);
@@ -74,13 +76,13 @@ namespace MonoGame.Effect
                 {
                     Console.WriteLine($"Failed to generate reflection data: stdout={reflectStdout}, stderr={reflectStderr}");
                 }
-                
+
                 // MSL Version: MMmmpp (1.2.0) - this allows us to target the lowest Metal-supported devices such
                 // as iPad Mini 2, iPhone 5s. See https://developer.apple.com/support/required-device-capabilities/#iphone-devices
                 // Note that this generates code that is supported by the lowest version: we still need to nudge
                 // the compiler (at runtime for instance) to explicitly provide the compiler version via MTLCompileOptions MTLLanguageVersion.
                 if (ExternalTool.Run(spirVCrossTool,
-                        $"--msl --msl-ios  --msl-version 10200 {additionalOptions} --output {shaderData.MetalOutputFile} {shaderData.SpirVOutputFile}",
+                        $"--msl --msl-ios --msl-version 10200 {additionalOptions} --output {shaderData.MetalOutputFile} {shaderData.SpirVOutputFile}",
                         out var stdout, out var stderr) != _SUCCESS_RETURN_CODE ||
                     !File.Exists(shaderData.MetalOutputFile))
                 {
@@ -88,7 +90,23 @@ namespace MonoGame.Effect
                 }
 
                 Console.WriteLine($" -- MetalSL written to {shaderData.MetalOutputFile}");
-                var metalBytes = File.ReadAllBytes(shaderData.MetalOutputFile);
+
+                string args = $"-sdk macosx metal -c {shaderData.MetalOutputFile} -o {shaderData.MetalIntermediateFile}";
+                int result = ExternalTool.Run("xcrun", args, out stdout, out stderr);
+                if (result != _SUCCESS_RETURN_CODE ||
+                    !File.Exists(shaderData.MetalIntermediateFile))
+                {
+                    throw new Exception($"Unable to compile metal {shaderData.MetalOutputFile}: {result}\n{stdout}\n{stderr}\n{args}");
+                }
+
+                args = $"-sdk macosx metallib {shaderData.MetalIntermediateFile} -o {shaderData.MetalLibraryFile}";
+                result = ExternalTool.Run("xcrun", args, out stdout, out stderr);
+                if (result != _SUCCESS_RETURN_CODE ||
+                    !File.Exists(shaderData.MetalLibraryFile))
+                {
+                    throw new Exception($"Unable to create metal library {shaderData.MetalLibraryFile}: {result}\n{stdout}\n{stderr}\n{args}");
+                }
+                var metalBytes = File.ReadAllBytes(shaderData.MetalLibraryFile);
                 shaderData.MetalShaderBytes = metalBytes;
                 shaderData.ShaderCode = metalBytes;
             }
@@ -202,7 +220,7 @@ namespace MonoGame.Effect
                     if (root.TryGetProperty("inputs", out var inputsElement))
                     {
                         var sortedInputs = new List<(JsonElement input, int location)>();
-                        
+
                         foreach (var input in inputsElement.EnumerateArray())
                         {
                             if (input.TryGetProperty("location", out var locationElement))
@@ -222,7 +240,7 @@ namespace MonoGame.Effect
                             if (input.TryGetProperty("name", out var nameElement))
                             {
                                 var name = nameElement.GetString() ?? "unknown";
-                                
+
                                 // Extract semantic and index from variable name
                                 // HLSL inputs like "in_var_POSITION0" become "POSITION" with index 0
                                 var match = Regex.Match(name, @"in_var_(\w+)(\d*)$");
@@ -230,9 +248,9 @@ namespace MonoGame.Effect
                                 {
                                     var semanticName = match.Groups[1].Value;
                                     var indexStr = match.Groups[2].Value;
-                                    
+
                                     attribute.index = string.IsNullOrEmpty(indexStr) ? 0 : int.Parse(indexStr);
-                                    
+
                                     // Map semantic name to VertexElementUsage
                                     switch (semanticName.ToUpper())
                                     {
@@ -303,5 +321,9 @@ namespace MonoGame.Effect
         }
 
         public string MetalOutputFile { get; set; }
+
+        public string MetalIntermediateFile { get; set; }
+
+        public string MetalLibraryFile { get; set; }
     }
 }

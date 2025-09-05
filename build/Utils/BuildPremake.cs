@@ -6,6 +6,7 @@ public sealed class BuildPremake
     public void Run(BuildContext context, string name, string workingDirectory, string solutionFile)
     {
         int exit;
+        var buildConfiguration = context.Argument("build-configuration", "Release");
         exit = context.StartProcess("premake5", new ProcessSettings { WorkingDirectory = workingDirectory, Arguments = "clean" });
         if (exit != 0)
             throw new Exception($"{name} Premake clean failed! {exit}");
@@ -29,13 +30,13 @@ public sealed class BuildPremake
 
         if (context.Environment.Platform.Family == PlatformFamily.Windows)
         {
-            exit = context.StartProcess("msbuild", new ProcessSettings { WorkingDirectory = workingDirectory, Arguments = $"{solutionFile} /p:Configuration=Release /p:Platform=x64" });
+            exit = context.StartProcess("msbuild", new ProcessSettings { WorkingDirectory = workingDirectory, Arguments = $"{solutionFile} /p:Configuration=${buildConfiguration} /p:Platform=x64" });
             if (exit != 0)
                 throw new Exception($"{name} build failed with msbuild! {exit}");
         }
         else
         {
-            exit = context.StartProcess("make", new ProcessSettings { WorkingDirectory = workingDirectory, Arguments = "config=release" });
+            exit = context.StartProcess("make", new ProcessSettings { WorkingDirectory = workingDirectory, Arguments = $"config={buildConfiguration.ToLower(CultureInfo.InvariantCulture)}" });
             if (exit != 0)
                 throw new Exception($"{name} build failed with make! {exit}");
         }
