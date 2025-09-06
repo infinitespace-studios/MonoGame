@@ -203,13 +203,13 @@ void MGA_Buffer_InitializeFormat(MGA_Buffer* buffer, mgbyte* waveHeader, mgbyte*
     
     auto wformat = (FAudioWaveFormatEx*)waveHeader;
     
-    if (wformat->wFormatTag == 2) // WAVE_FORMAT_ADPCM
+    if (wformat->wFormatTag == FAUDIO_FORMAT_MSADPCM)
     {
         // Handle MSADPCM format
         const size_t size = sizeof(FAudioADPCMWaveFormat) + (7 * sizeof(FAudioADPCMCoefSet));
         auto format = (FAudioADPCMWaveFormat*)malloc(size);
         memset(format, 0, size);
-        format->wfx.wFormatTag = 2; // WAVE_FORMAT_ADPCM
+        format->wfx.wFormatTag = FAUDIO_FORMAT_MSADPCM;
         format->wfx.nSamplesPerSec = wformat->nSamplesPerSec;
         format->wfx.nChannels = wformat->nChannels;
         format->wfx.nBlockAlign = wformat->nBlockAlign;
@@ -283,7 +283,7 @@ void MGA_Buffer_InitializePCM(MGA_Buffer* buffer, mgbyte* waveData, mgint offset
     
     auto format = (FAudioWaveFormatEx*)malloc(sizeof(FAudioWaveFormatEx));
     memset(format, 0, sizeof(FAudioWaveFormatEx));
-    format->wFormatTag = 1; // WAVE_FORMAT_PCM
+    format->wFormatTag = FAUDIO_FORMAT_PCM;
     format->nSamplesPerSec = sampleRate;
     format->nChannels = channels;
     format->nBlockAlign = channels * (sampleBits / 8);
@@ -322,7 +322,7 @@ void MGA_Buffer_InitializeXact(MGA_Buffer* buffer, mguint codec, mgbyte* waveDat
         const size_t size = sizeof(FAudioADPCMWaveFormat) + (7 * sizeof(FAudioADPCMCoefSet));
         auto format = (FAudioADPCMWaveFormat*)malloc(size);
         memset(format, 0, size);
-        format->wfx.wFormatTag = 2; // WAVE_FORMAT_ADPCM
+        format->wfx.wFormatTag = FAUDIO_FORMAT_MSADPCM;
         format->wfx.nSamplesPerSec = sampleRate;
         format->wfx.nChannels = channels;
         format->wfx.nBlockAlign = blockAlignment;
@@ -369,7 +369,7 @@ void MGA_Buffer_InitializeXact(MGA_Buffer* buffer, mguint codec, mgbyte* waveDat
         // Handle other formats (PCM as fallback)
         auto format = (FAudioWaveFormatEx*)malloc(sizeof(FAudioWaveFormatEx));
         memset(format, 0, sizeof(FAudioWaveFormatEx));
-        format->wFormatTag = 1; // WAVE_FORMAT_PCM
+        format->wFormatTag = FAUDIO_FORMAT_PCM;
         format->nSamplesPerSec = sampleRate;
         format->nChannels = channels;
         format->nBlockAlign = blockAlignment;
