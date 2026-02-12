@@ -15,5 +15,7 @@ public sealed class BuildTestsTask : FrostingTask<BuildContext>
             context.DotNetBuild(context.GetProjectPath(ProjectType.Tests, "MonoGame.Tests.WindowsDX"), context.DotNetBuildSettings);
             context.DotNetBuild(context.GetProjectPath(ProjectType.Tests, "MonoGame.Tests.WindowsDX12"), context.DotNetBuildSettings);
         }
+        if (!context.IsRunningOnWindows())
+            context.DotNetBuild(context.GetProjectPath(ProjectType.Tests, "MonoGame.Tests.DesktopGL4"), context.DotNetBuildSettings);
     }
 }
