@@ -2,23 +2,7 @@
 // This file is subject to the terms and conditions defined in
 // file 'LICENSE.txt', which is part of this source code package.
 
-
-#if SM6
-
-#define PS_PROFILE ps_6_0
-#define VS_PROFILE vs_6_0
-
-#elif SM4
-
-#define PS_PROFILE ps_4_0
-#define VS_PROFILE vs_4_0
-
-#else
-
-#define PS_PROFILE ps_3_0
-#define VS_PROFILE vs_3_0
-
-#endif
+#include "Include.fxh"
 
 matrix WorldViewProj;
 

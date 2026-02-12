@@ -35,6 +35,8 @@ namespace MonoGame.Effect
 
         public static readonly ShaderProfile Vulkan = FromName("Vulkan");
 
+        public static readonly ShaderProfile OpenGL4 = FromName("OpenGL4");
+
         /// <summary>
         /// Returns all the loaded shader profiles.
         /// </summary>
@@ -84,6 +86,7 @@ namespace MonoGame.Effect
             TargetPlatform.iOS or TargetPlatform.Android or TargetPlatform.DesktopGL or TargetPlatform.MacOSX or TargetPlatform.RaspberryPi or TargetPlatform.Web => ShaderProfile.OpenGL,
             TargetPlatform.DesktopVK => ShaderProfile.Vulkan,
             TargetPlatform.WindowsDX12 => ShaderProfile.DirectX_12,
+            TargetPlatform.DesktopGL4 => ShaderProfile.OpenGL4,
             _ => ShaderProfile.FromName(platform.ToString())
         };
 
