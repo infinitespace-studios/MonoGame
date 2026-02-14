@@ -1,6 +1,7 @@
 // MonoGame - Copyright (C) MonoGame Foundation, Inc
 // This file is subject to the terms and conditions defined in
 // file 'LICENSE.txt', which is part of this source code package.
+#include "Include.fxh"
 
 #if SM6
 
@@ -57,12 +58,21 @@ struct VSOutput
 
 VSOutput VS_Main(float2 xy : POSITION)
 {
+<<<<<<< HEAD
 #if SM6
     float height = HeightMapTexture.SampleLevel(HeightMapSampler, (xy + float2(0.5, 0.5)) / HeightMapSize, 0).r;
 #else
     float height = tex2Dlod(HeightMapSampler, float4((xy + float2(0.5, 0.5)) / HeightMapSize, 0, 0)).r;
 #endif
 
+=======
+    float2 uv = (xy + float2(0.5, 0.5)) / HeightMapSize;
+#if SM6 || SM4
+    float height = HeightMapTexture.SampleLevel(HeightMapSampler, uv, 0).r;
+#else
+    float height = tex2Dlod(HeightMapSampler, float4(uv, 0, 0)).r;
+#endif
+>>>>>>> b936f1bab (Fix up many tests. Don't use -fvk-use-dx-layout for shaders in opengl4)
     float3 worldPosition = float3(xy.x, height, xy.y);
 
     VSOutput output;
@@ -77,7 +87,10 @@ float4 PS_Main(VSOutput input) : SV_TARGET0
     return input.Color;
 }
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> b936f1bab (Fix up many tests. Don't use -fvk-use-dx-layout for shaders in opengl4)
 technique
 {
     pass
