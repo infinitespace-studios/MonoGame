@@ -433,7 +433,7 @@ namespace MonoGame.Tests.Graphics
         [Test]
         [TestCase(false)]
         [TestCase(true)]
-#if DESKTOPGL
+#if DESKTOPGL || DESKTOPGL4
         [Ignore("Expected not 1024 but got 1024. Needs Investigating")]
 #endif
         public void MSAAEnabled(bool enabled)

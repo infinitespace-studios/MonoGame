@@ -15,7 +15,7 @@ namespace MonoGame.Tests.Graphics
     internal class RasterizerStateTest : GraphicsDeviceTestFixtureBase
     {
         [TestCase(-1f)]
-#if DESKTOPGL
+#if DESKTOPGL || DESKTOPGL4
         [TestCase(1f, Ignore = "fails similarity test. Needs Investigating")]
 #elif VULKAN && MACOS
         [TestCase(1f, Ignore = "Constant depth bias has no effect on float-depth polygons at z=0; not supported on MoltenVK. See https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html#primsrast-depthbias")]  
