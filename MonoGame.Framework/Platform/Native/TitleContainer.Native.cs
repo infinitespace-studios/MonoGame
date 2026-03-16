@@ -14,6 +14,11 @@ partial class TitleContainer
 
     static partial void PlatformInit()
     {
+#if ANDROID
+        // Android assets live inside the APK and must be read via AAssetManager.
+        // Keep Location empty so paths stay relative for AAssetManager_open.
+        Location = string.Empty;
+#else
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             Location = Path.Combine(AppContext.BaseDirectory, "..", "Resources");
@@ -26,6 +31,7 @@ partial class TitleContainer
         {
             Location = AppContext.BaseDirectory;
         }
+#endif
     }
 
     private static Stream PlatformOpenStream(string safeName)

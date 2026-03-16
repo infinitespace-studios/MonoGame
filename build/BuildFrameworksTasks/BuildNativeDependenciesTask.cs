@@ -19,6 +19,9 @@ public sealed class BuildNativeDependenciesTask : FrostingTask<BuildContext>
             var arch = RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "arm64" : "x64";
             BuildDependenciesForArch(context, arch);
         }
+
+        // NOTE: Android SDL2+FAudio cross-compilation removed — OpenXR Android
+        // build excludes FAudio/SDL2 to avoid SDL's JNI_OnLoad crash.
     }
 
     private void BuildDependenciesForArch(BuildContext context, string targetArch)

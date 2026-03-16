@@ -35,6 +35,8 @@ internal enum EventType : uint
 
     DropFile,
     DropComplete,
+
+    VRControllerPose,
 }
 
 
@@ -155,6 +157,16 @@ internal struct MGP_ControllerEvent
     public short Value;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+internal struct MGP_VRPoseEvent
+{
+    public int Hand;       // 0=left, 1=right
+    public int PoseType;   // 0=aim, 1=grip
+    public float PosX, PosY, PosZ;
+    public float OriX, OriY, OriZ, OriW;
+    public int Flags;      // XrSpaceLocationFlags from xrLocateSpace
+}
+
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct MGP_DropEvent
@@ -193,6 +205,9 @@ internal struct MGP_Event
 
     [FieldOffset(12)]
     public MGP_ControllerEvent Controller;
+
+    [FieldOffset(12)]
+    public MGP_VRPoseEvent VRPose;
 }
 
 
@@ -227,6 +242,10 @@ internal static unsafe partial class MGP
     [DllImport(MonoGameNativeDLL, EntryPoint = "MGP_Platform_Destroy", ExactSpelling = true)]
     public static extern void Platform_Destroy(MGP_Platform* platform);
 
+    // OpenXR-only: returns the MGXR_System* stored in the platform (not in auto-generated api_MGP.h)
+    [DllImport(MonoGameNativeDLL, EntryPoint = "MGP_Platform_GetXRSystem", ExactSpelling = true)]
+    public static extern nint Platform_GetXRSystem(MGP_Platform* platform);
+
     [DllImport(MonoGameNativeDLL, EntryPoint = "MGP_Platform_BeforeInitialize", ExactSpelling = true)]
     public static extern void Platform_BeforeInitialize(MGP_Platform* platform);
 
@@ -235,6 +254,9 @@ internal static unsafe partial class MGP
 
     [DllImport(MonoGameNativeDLL, EntryPoint = "MGP_Platform_StartRunLoop", ExactSpelling = true)]
     public static extern void Platform_StartRunLoop(MGP_Platform* platform);
+
+    [DllImport(MonoGameNativeDLL, EntryPoint = "MGP_Platform_StartRunLoopAsync", ExactSpelling = true)]
+    public static extern void Platform_StartRunLoopAsync(MGP_Platform* platform, IntPtr callback);
 
     [DllImport(MonoGameNativeDLL, EntryPoint = "MGP_Platform_BeforeRun", ExactSpelling = true)]
     public static extern byte Platform_BeforeRun(MGP_Platform* platform);

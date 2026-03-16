@@ -1,0 +1,68 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
+    <DefineConstants>ANDROID;NATIVE;OPENXR;XNADESIGNPROVIDED;STBSHARP_INTERNAL</DefineConstants>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>MonoGame for Meta Quest / Android OpenXR headsets. Uses Vulkan rendering via the native mgruntime library.</Description>
+    <PackageTags>monogame;android;openxr;quest;vr</PackageTags>
+    <PackageId>MonoGame.Framework.Android.OpenXR</PackageId>
+    <AppendTargetFrameworkToOutputPath>False</AppendTargetFrameworkToOutputPath>
+    <IsAotCompatible>true</IsAotCompatible>
+    <PackageReadmeFile>README-packages.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\README-packages.md" Pack="true" PackagePath="\"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="bin\**\*" />
+    <Compile Remove="obj\**\*" />
+    <Compile Remove="Platform\**\*" />
+    <Compile Remove="Properties\**\*" />
+    <Compile Remove="Utilities\System.Numerics.Vectors\**\*" />
+    <Compile Remove="Devices\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="Platform\**\*" />
+    <None Remove="Utilities\System.Numerics.Vectors\**\*" />
+  </ItemGroup>
+
+  <!-- Remove items that don't apply to this platform -->
+  <ItemGroup>
+    <Compile Remove="Input\Keyboard.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Native platform layer (P/Invoke to mgruntime) — replaces OpenGL ES code -->
+    <Compile Include="Platform\Native\**\*" />
+
+    <!-- VR input API (VRController, hand tracking) -->
+    <Compile Include="Platform\VR\**\*" />
+
+    <!-- XR\** is auto-included by SDK defaults — no explicit include needed -->
+
+    <!-- Android-specific files for OpenXR activity -->
+    <Compile Include="Platform\Android\AndroidCompatibility.cs" />
+    <Compile Include="Platform\Android\OpenXR\OpenXRGameActivity.cs" />
+
+    <!-- Shared platform utilities -->
+    <Compile Include="Platform\Input\InputKeyEventArgs.cs" />
+    <Compile Include="Platform\Utilities\AssemblyHelper.cs" />
+    <Compile Include="Platform\Utilities\ReflectionHelpers.Default.cs" />
+    <Compile Include="Platform\Threading.cs" />
+    <Compile Include="Platform\Utilities\InteropHelpers.cs" />
+
+    <!-- Desktop sensor stubs (VR sensors come from OpenXR, not Android hardware) -->
+    <Compile Include="Platform\Desktop\Devices\Sensors\Accelerometer.cs" />
+    <Compile Include="Platform\Desktop\Devices\Sensors\Compass.cs" />
+
+    <Compile Include="..\ThirdParty\StbImageSharp\src\**\*.cs" LinkBase="Utilities\StbImageSharp" />
+    <Compile Include="..\ThirdParty\StbImageWriteSharp\src\**\*.cs" LinkBase="Utilities\StbImageWriteSharp" />
+  </ItemGroup>
+
+  <Import Project="MonoGame.Framework.Devices.Sensors.targets" />
+</Project>

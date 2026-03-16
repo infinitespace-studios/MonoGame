@@ -18,6 +18,37 @@ newoption {
         { "arm64", "64-bit ARM" }
     }
 }
+-- Android NDK configuration for Quest/Android ARM64 builds.
+local android_ndk = os.getenv("ANDROID_NDK_HOME") or os.getenv("NDK_ROOT")
+
+function ndk_host_tag()
+    if os.host() == "macosx" then
+        return "darwin-x86_64"
+    elseif os.host() == "windows" then
+        return "windows-x86_64"
+    else
+        return "linux-x86_64"
+    end
+end
+
+function android_config()
+    filter {"system:android"}
+        architecture "ARM64"
+        toolset "clang"
+        if android_ndk then
+            local sysroot = path.join(android_ndk, "toolchains/llvm/prebuilt/" .. ndk_host_tag() .. "/sysroot")
+            buildoptions {
+                "--target=aarch64-linux-android29",
+                "--sysroot=" .. sysroot,
+            }
+            linkoptions {
+                "--target=aarch64-linux-android29",
+                "--sysroot=" .. sysroot,
+            }
+        end
+        defines {"ANDROID", "__ANDROID__"}
+    filter {}
+end
 
 function common(project_name)
     if os.target() == "windows" then
@@ -51,11 +82,9 @@ function common(project_name)
 end
 
 -- SDL is supported on all desktop platforms.
-function sdl2()
-    defines {"MG_SDL2"}
-
-    files {"sdl/**.h", "sdl/**.cpp"}
-
+-- Links SDL2 libraries without including the SDL platform source files.
+-- Used by OpenXR which needs SDL2 only as a FAudio dependency (not for windowing/input).
+function sdl2_libs()
     includedirs {"external/sdl2/sdl/include"}
 
     filter {"system:windows"}
@@ -75,6 +104,12 @@ function sdl2()
     filter {}
 end
 
+function sdl2()
+    defines {"MG_SDL2"}
+    files {"sdl/**.h", "sdl/**.cpp"}
+    sdl2_libs()
+end
+
 -- Vulkan is supported for all desktop platforms.
 function vulkan()
     defines {"MG_VULKAN"}
@@ -87,6 +122,37 @@ function vulkan()
     filter {"system:macosx"}
     libdirs {path.join(vulkan_sdk, "lib/MoltenVK.xcframework/macos-arm64_x86_64")}
     links {"MoltenVK", "IOSurface.framework", "Foundation.framework", "QuartzCore.framework", "AppKit.framework"}
+    filter {}
+end
+
+-- Vulkan for OpenXR on macOS — use the Vulkan loader instead of linking MoltenVK directly.
+-- This avoids duplicate ObjC MoltenVK classes when the XR runtime also embeds MoltenVK.
+function vulkan_openxr()
+    defines {"MG_VULKAN"}
+
+    files {"vulkan/**.h", "vulkan/**.cpp"}
+
+    includedirs {"external/vulkan-headers/include", "external/volk", "external/vma/include",
+        path.join(vulkan_sdk, "include")}
+
+    filter {"system:macosx"}
+    libdirs {path.join(vulkan_sdk, "lib")}
+    links {"vulkan", "IOSurface.framework", "Foundation.framework", "QuartzCore.framework", "AppKit.framework"}
+    linkoptions {"-Wl,-rpath,@loader_path"}
+    filter {}
+end
+
+-- Vulkan for Android — uses system Vulkan library (no volk, no SDK).
+function vulkan_android()
+    defines {"MG_VULKAN"}
+
+    files {"vulkan/**.h", "vulkan/**.cpp"}
+
+    includedirs {"external/vulkan-headers/include", "external/vma/include"}
+
+    -- On Android, Vulkan is a system library — no volk, no SDK path needed
+    filter {"system:android"}
+        links {"vulkan"}
     filter {}
 end
 
@@ -125,11 +191,79 @@ function faudio()
     filter {}
 end
 
+-- FAudio for Android — expects prebuilt static library for ARM64.
+-- Build FAudio for Android: cd external/faudio && mkdir -p build/android && cd build/android
+--   && cmake ../.. -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake
+--     -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-29 && make
+function faudio_android()
+    defines {"MG_FAUDIO"}
+
+    files {"faudio/**.h", "faudio/**.cpp"}
+
+    includedirs {"external/faudio/include"}
+
+    filter {"system:android"}
+        linkoptions {"external/faudio/build/android/libFAudio.a"}
+        links {"OpenSLES"}
+    filter {}
+end
+
 -- Xaudio is supported on Windows and Xbox.
 function xaudio()
     defines {"MG_XAUDIO"}
 
     files {"xaudio/**.h", "xaudio/**.cpp"}
+end
+
+-- OpenXR replaces SDL for VR/XR platforms.
+-- Builds on macOS as a compile check; ships on Windows and Android.
+function openxr()
+    defines {"MG_OPENXR"}
+
+    files {"openxr/**.h", "openxr/**.cpp"}
+
+    -- OpenXR loader built from source
+    files {
+        "external/openxr-sdk/src/loader/*.cpp",
+        "external/openxr-sdk/src/loader/*.hpp",
+        "external/openxr-sdk/src/common/object_info.cpp",
+        "external/openxr-sdk/src/common/filesystem_utils.cpp",
+        "external/openxr-sdk/src/xr_generated_dispatch_table_core.c",
+        "external/openxr-sdk/src/xr_generated_dispatch_table.c",
+        "external/openxr-sdk/src/external/jsoncpp/src/lib_json/*.cpp",
+    }
+
+    includedirs {
+        "external/openxr-sdk/include",
+        "external/openxr-sdk/src",
+        "external/openxr-sdk/src/common",
+        "external/openxr-sdk/src/loader",
+        "external/openxr-sdk/src/external/jsoncpp/include",
+        "openxr",  -- for common_config.h
+    }
+
+    defines {
+        "OPENXR_HAVE_COMMON_CONFIG",
+        "XRLOADER_DISABLE_EXCEPTION_HANDLING",
+    }
+
+    filter {"system:windows"}
+        defines {"XR_OS_WINDOWS", "WIN32_LEAN_AND_MEAN", "NOMINMAX"}
+        links {"advapi32"}
+        -- OpenXR loader sources (platform_utils.hpp, loader_platform.hpp) need Win32 APIs.
+        -- Force-include windows.h so loader code compiles without XR_USE_PLATFORM_WIN32
+        -- (which would pull in D3D types we don't need).
+        forceincludes {"windows.h"}
+    filter {"system:macosx"}
+        defines {"XR_OS_APPLE"}
+        links {"dl"}
+    filter {"system:linux"}
+        defines {"XR_OS_LINUX"}
+        links {"dl", "pthread", "m", "rt"}
+    filter {"system:android"}
+        defines {"XR_OS_ANDROID"}
+        links {"log", "android"}
+    filter {}
 end
 
 function configs()
@@ -174,4 +308,40 @@ if os.target() == "windows" then
     directx12()
     xaudio()
     configs()
+end
+
+if os.target() == "windows" or os.target() == "macosx" or os.target() == "linux" then
+    project "openxr"
+        common("openxr")
+        openxr()
+        vulkan_openxr()
+        faudio()
+        sdl2_libs()  -- FAudio depends on SDL2 (audio/threading only, no platform source)
+        configs()
+
+        -- Copy libvulkan alongside the output dylib so @loader_path rpath resolves
+        filter {"system:macosx"}
+        postbuildcommands {
+            "{COPYFILE} " .. path.join(vulkan_sdk, "lib", "libvulkan.1.dylib") .. " %{cfg.targetdir}/libvulkan.1.dylib"
+        }
+        filter {}
+end
+
+if os.target() == "android" then
+    project "openxr_android"
+        common("openxr")
+        android_config()
+        openxr()
+        vulkan_android()
+        faudio_android()
+        configs()
+end
+
+if os.target() == "windows" then
+    project "openxr_dx12"
+        common("openxr_dx12")
+        openxr()
+        directx12()
+        xaudio()
+        configs()
 end

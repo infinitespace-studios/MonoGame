@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <!-- Native runtime for Android ARM64 (Quest 2/3/Pro) -->
+    <Content Include="..\..\..\Artifacts\native\mgruntime\openxr\android\Release\libmgruntime.so"
+      Condition="Exists('..\..\..\Artifacts\native\mgruntime\openxr\android\Release\libmgruntime.so')">
+      <PackagePath>runtimes\android-arm64\native</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+
+    <!-- OpenXR loader for Android ARM64 -->
+    <Content Include="..\..\..\Artifacts\native\mgruntime\openxr\android\Release\libopenxr_loader.so"
+      Condition="Exists('..\..\..\Artifacts\native\mgruntime\openxr\android\Release\libopenxr_loader.so')">
+      <PackagePath>runtimes\android-arm64\native</PackagePath>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

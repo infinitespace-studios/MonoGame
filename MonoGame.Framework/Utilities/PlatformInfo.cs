@@ -16,7 +16,9 @@ namespace MonoGame.Framework.Utilities
         {
             get
             {
-#if ANDROID
+#if OPENXR
+                return PlatformGetMonoGamePlatform();
+#elif ANDROID
                 return MonoGamePlatform.Android;
 #elif DESKTOPGL
                 return MonoGamePlatform.DesktopGL;

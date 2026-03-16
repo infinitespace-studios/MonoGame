@@ -153,7 +153,7 @@ namespace Microsoft.Xna.Framework
                         SoundEffect.Shutdown();
                     }
                 }
-#if ANDROID
+#if ANDROID || OPENXR
                 Activity = null;
 #endif
                 _isDisposed = true;
@@ -176,8 +176,10 @@ namespace Microsoft.Xna.Framework
 
         #region Properties
 
-#if ANDROID
+#if ANDROID && !OPENXR
         public static AndroidGameActivity Activity { get; internal set; }
+#elif OPENXR
+        public static Android.App.Activity Activity { get; internal set; }
 #endif
         private static Game _instance = null;
         internal static Game Instance { get { return Game._instance; } }

@@ -1,6 +1,234 @@
 ﻿# Changelog
 
-## 3.8.4 Release - April 2nd - 2025
+## OpenXR Support [Unreleased]
+
+### Added — Phase 1: Native OpenXR Foundation
+
+#### Task 1.1: OpenXR SDK External Dependency
+- Added OpenXR-SDK as git submodule at `native/monogame/external/openxr-sdk/`
+- Added `openxr()` function to `premake5.lua` with `MG_OPENXR` define
+- Added `openxr` project to premake5 workspace (Vulkan + FAudio, no SDL)
+
+#### Task 1.2: MGXR Native API Header
+- Created `native/monogame/include/api_MGXR.h` — 30 exported functions covering:
+  system lifecycle, session management, swapchain, view/projection, reference spaces, action system
+- Added `OpenXR = 13` to `MGMonoGamePlatform` enum in `api_enums.h`
+- Added `MGXRReferenceSpaceType`, `MGXRActionType`, `MGXRSessionState` enums to `api_enums.h`
+- Added `MGXR_Pose`, `MGXR_ViewProjection` structs to `api_structs.h`
+
+#### Task 1.3: MGXR Core OpenXR Native Module
+- Created `native/monogame/openxr/MGXR_openxr.cpp` — full implementation of all MGXR_* functions
+- Implements: XR instance creation, session lifecycle, swapchain management, view/projection queries, reference spaces, action system (input bindings, state queries, haptics)
+- Uses `XR_KHR_vulkan_enable` extension for Vulkan integration
+- Includes `#ifdef __ANDROID__` for Quest/Android `XR_KHR_ANDROID_CREATE_INSTANCE` extension
+
+#### Task 1.4: MGP Platform Implementation for OpenXR
+- Created `native/monogame/openxr/MGP_openxr.cpp` — implements full `api_MGP.h` interface
+- Returns `MGMonoGamePlatform::OpenXR` and `MGGraphicsBackend::Vulkan`
+- Window functions return no-ops (VR has no traditional window)
+- GamePad stubs for 2 VR controllers (left/right hand)
+- Creates MGXR_System on platform init
+
+#### Task 1.5: Vulkan Backend OpenXR Modifications
+- Modified `native/monogame/vulkan/MGG_Vulkan.cpp` with `#ifdef MG_OPENXR` guards:
+  - Device struct: `openxrMode` flag replaces `SDL_Window*` member
+  - Instance extensions: skip SDL surface extensions in OpenXR mode
+  - Swapchain creation: skip VkSurfaceKHR/VkSwapchainKHR (OpenXR provides images)
+  - BeginFrame: skip `vkAcquireNextImageKHR` in OpenXR mode
+  - Present: skip `vkQueuePresentKHR`, use `vkQueueWaitIdle` (XR compositor handles presentation)
+  - Display modes: report HMD resolution instead of SDL display modes
+- All changes are behind `#ifdef MG_OPENXR` / `#elif defined(MG_SDL2)` guards
+- Verified both MG_SDL2 and MG_OPENXR paths compile cleanly
+
+### Added — Phase 2: C# Managed Layer (Tasks 2.1-2.2)
+
+#### Task 2.1: MonoGamePlatform.OpenXR Enum
+- Added `OpenXR` value to `MonoGamePlatform` C# enum (value 13, matches native)
+
+#### Task 2.2: C# OpenXR Interop Layer
+- Created `MonoGame.Framework/Platform/Native/XR.Interop.cs`:
+  - 6 opaque handle types: `MGXR_System`, `Session`, `Swapchain`, `Space`, `ActionSet`, `Action`
+  - 3 enums: `XRReferenceSpaceType`, `XRActionType`, `XRSessionState`
+  - 2 structs: `MGXR_Pose`, `MGXR_ViewProjection`
+  - 30 `[DllImport]` methods covering all MGXR_* native functions
+- Regenerated native headers via `MonoGame.Generator.CTypes` tool
+- C# is now the single source of truth for the native API contract
+
+#### Task 2.3: High-Level C# XR Types
+- Created `Microsoft.Xna.Framework.XR` namespace with public API types:
+  - `XRDevice` — static API for VR headset access (session state, views, recommended size)
+  - `XRPose` — 6DOF position+orientation with `ToViewMatrix()` helper
+  - `XRView` — per-eye pose, projection matrix, and view matrix
+  - `XRSessionState`, `XRTrackingSpace`, `XRHandedness` enums
+- All types safe on non-Native platforms (`#if NATIVE` guards for interop code)
+
+#### Task 2.4: NativeGamePlatform OpenXR Hooks
+- Created `XRPlatformHelper` to coordinate XR lifecycle with game loop
+- Hooked into `NativeGamePlatform`: constructor, `BeforeDraw`, `Present`, `Dispose`
+- Safe no-ops on non-OpenXR platforms
+
+#### Task 2.5: Runtime NuGet Package
+- Created `MonoGame.Runtime.Windows.OpenXR` NuGet package (follows Vulkan pattern)
+
+### Added — Phase 3: Stereo Rendering Infrastructure (Tasks 3.1-3.2)
+
+#### Task 3.1: GraphicsDevice OpenXR Swapchain Bridge
+- Added `MGG_GraphicsDevice_SetXRSwapchainImage()` to Vulkan backend — creates `MGG_Texture`
+  wrappers from OpenXR-provided `VkImage` handles including depth buffers and image views
+- Added 3 new native bridge functions to `MGXR_openxr.cpp`:
+  - `MGXR_Swapchain_GetImageCount` — returns number of images in a swapchain
+  - `MGXR_Swapchain_ConfigureDeviceImages` — registers all swapchain images with the graphics device
+  - `MGXR_Swapchain_SetActiveImage` — sets which swapchain image is the current backbuffer
+- Added corresponding C# P/Invoke declarations in `XR.Interop.cs`
+- Wired `XRPlatformHelper.OnGraphicsDeviceCreated` into `NativeGamePlatform.BeforeInitialize`
+
+#### Task 3.2: Two-Pass Stereo Rendering
+- Implemented dual-swapchain stereo rendering (one swapchain per eye)
+- Added `XRDevice.BeginEye(int eye)` / `EndEye(int eye)` public API for per-eye rendering
+- Added `MGXR_Session_EndFrameStereo()` native function — submits `XrCompositionLayerProjection`
+  with per-eye sub-images, poses, and FoV to the OpenXR compositor
+- Decision: Two-pass rendering chosen over multiview to avoid modifying the HLSL shader pipeline
+  (multiview requires `[[vk::ViewIndex]]` in vertex shaders which would affect all platforms)
+
+### Added — Phase 4: VR Input System (Tasks 4.1-4.2)
+
+#### Task 4.1: OpenXR Action Bindings
+- Created default VR action set in `MGP_openxr.cpp` with 10 actions:
+  trigger, grip, thumbstick, thumbstick click, primary/secondary buttons,
+  menu, haptic feedback, aim pose, grip pose
+- Added Oculus Touch controller bindings (Quest 2 primary target):
+  maps X/Y/A/B buttons, triggers, grip, thumbstick, menu, haptics, poses
+- Added KHR Simple controller fallback bindings (select, menu, haptics, poses)
+- Restructured action system: `ActionSet_Create` now takes `MGXR_System*`
+  (not session) so actions can be created before session exists
+- Added `MGXR_ActionSet_AttachToSession()` to bind action sets to session
+- Added `MGXR_Platform_AttachActionsToSession()` bridge for C# to trigger attachment
+
+#### Task 4.2: Map VR Controllers to GamePad API
+- Implemented `PollVRControllerState()` — syncs OpenXR actions each frame and pushes
+  `ControllerStateChange` events through the existing MGP event queue system
+- Both VR controllers merged into a single GamePad (PlayerIndex.One) like a split gamepad:
+  - Left hand: LeftStick (X/Y), LeftTrigger, LeftShoulder (grip), X, Y, Start (menu)
+  - Right hand: RightStick (X/Y), RightTrigger, RightShoulder (grip), A, B, Back (menu)
+- Populated `InputFlags` in `GetCaps` for full controller capability reporting
+- Implemented `SetVibration` routing through `MGXR_Action_ApplyHaptic` (160Hz, 100ms)
+- Existing MonoGame `GamePad.GetState()` API now works with VR controllers
+- Added `MGG_GraphicsDevice_GetVulkanHandles()` to expose Vulkan device handles for session creation
+- Added `NativeGamePlatform.Instance` static property for platform handle access
+- `XRPlatformHelper.OnGraphicsDeviceCreated` now creates the full session lifecycle:
+  get Vulkan handles → create session → attach actions → create swapchains
+
+### Added — Phase 5: Build System & Distribution (Tasks 5.1-5.2)
+
+#### Task 5.1: Desktop Build System Integration
+- Created `MonoGame.Runtime.Linux.OpenXR` NuGet package (`src/NuGetPackages/`)
+  to distribute the Linux native OpenXR runtime (follows existing Vulkan pattern)
+- Updated `BuildNativeTask.cs` to pack OpenXR runtime NuGet packages:
+  - Windows: packs `MonoGame.Runtime.Windows.OpenXR`
+  - Linux: packs `MonoGame.Runtime.Linux.OpenXR`
+
+#### Task 5.2: Desktop VR Project Template
+- Created `MonoGame.Application.OpenXR.CSharp` template in `external/MonoGame.Templates/`
+  (shortName: `mgopenxr`, usable via `dotnet new mgopenxr -n MyVRGame`)
+- Template includes `Game1.cs` with VR rendering pattern:
+  per-eye stereo rendering via `XRDevice.BeginEye()`/`EndEye()`, GamePad input from
+  merged VR controllers, 6DOF pose queries via `XRDevice.GetControllerPose()`
+- References `MonoGame.Framework.Native`, `MonoGame.Runtime.Windows.OpenXR`,
+  `MonoGame.Runtime.Linux.OpenXR`, and `MonoGame.Content.Builder.Task`
+
+### Added — Phase 6: Testing & Validation (Task 6.1)
+
+#### Task 6.1: Unit Tests for XR Types
+- Created `Tests/MonoGame.Tests.XR.csproj` (DesktopGL-based, Mac-compatible, NUnit 3.13.2)
+- 34 unit tests covering:
+  - `XRPose.ToViewMatrix()` math correctness (identity, translation, rotation, combined, invertibility)
+  - `XRDevice.CreateProjectionFov()` (symmetric/asymmetric FOV, near/far planes, matrix structure)
+  - XR enum values aligned to OpenXR spec (XRSessionState, XRHandedness, XRTrackingSpace)
+  - Struct layout verification (XRPose=28 bytes, XRView=156 bytes)
+  - XRDevice non-native platform defaults (safe no-ops and zero returns)
+
+#### Task 6.2: Meta XR Simulator Integration (macOS)
+- Switched from `XR_KHR_vulkan_enable` to `XR_KHR_vulkan_enable2` — required by Meta XR Simulator
+  which needs to initialize its internal Vulkan state (volk) through wrapped instance/device creation
+- Added three XR Vulkan wrapper exports in `MGXR_openxr.cpp`:
+  `MGXR_System_CreateVulkanInstance`, `MGXR_System_GetVulkanPhysicalDevice`, `MGXR_System_CreateVulkanDevice`
+- Routed `MGG_GraphicsSystem_Create` and `MGG_GraphicsDevice_Create` through XR wrappers when `g_xrSystem` is set
+- Added OpenXR event polling in `MGXR_Session_BeginFrame` with proper session state machine:
+  IDLE → READY (calls `xrBeginSession`) → SYNCHRONIZED → VISIBLE → FOCUSED
+- Submit empty `xrEndFrame` when `shouldRender=false` to maintain Begin/EndFrame pairing (spec requirement)
+- Cache XR swapchain textures by VkImage handle (`g_xrTextureCache`) to prevent VkImageView
+  destruction between left/right eye renders within a single command buffer submission
+- Added `vulkan_openxr()` premake function: links `libvulkan` (Vulkan loader) instead of MoltenVK
+  to avoid duplicate ObjC class conflicts with the Meta XR Simulator's embedded MoltenVK
+- Added macOS Vulkan portability extensions: `VK_KHR_portability_enumeration` (instance),
+  `VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR`, `VK_KHR_portability_subset` (device)
+- Added `MGP_Platform_GetXRSystem` and `MGG_SetXRSystem` to pass XR system handle from C# to native
+- Verified stereo rendering at ~48 FPS on Meta XR Simulator v71 (macOS, Apple M2 Max)
+
+### Added — Phase 7: Quest 2 Android Standalone Support (Tasks 7.1-7.7)
+
+#### Task 7.1: Android/ARM64 Target in premake5.lua
+- Added `android_config()` function for NDK cross-compilation (ARM64, API level 29)
+- Added `vulkan_android()` for system Vulkan (no volk, no SDK — Android provides Vulkan natively)
+- Added `faudio_android()` expecting prebuilt FAudio static library for ARM64
+- Added `openxr_android` project to workspace (conditionally built when `--os=android`)
+- Desktop builds unaffected — verified macOS OpenXR native build still succeeds
+- Added `CMakeLists.txt` for Android NDK cross-compilation (premake5 lacks Android target support)
+- Successfully cross-compiled `libmgruntime.so` (ARM64) with Vulkan + OpenXR loader + JNI wrappers
+- VMA pinned to Vulkan 1.1 for Quest compatibility (`VMA_VULKAN_VERSION=1001000`)
+- FAudio is conditionally included (requires separate cross-compile with SDL)
+
+#### Build System: Android Cross-Compilation (CI-Ready)
+- `BuildNativeDependenciesTask`: SDL2 and FAudio cross-compiled for Android ARM64
+  - SDL2 built static with sensor/render/locale/misc disabled (audio-focused)
+  - FAudio built static with SDL2 headers (`-DBUILD_SDL3=OFF`)
+  - Auto-detects NDK from `ANDROID_NDK_HOME` or `NDK_ROOT` env vars
+- `BuildNativeTask`: Runs CMake build for Android, packs NuGet when artifacts exist
+- SDL2 `JNI_OnLoad` provides JVM initialization; `MGXR_SetAndroidContext` captures VM+Activity explicitly
+
+#### Android AAssetManager Support
+- `MG_Asset.cpp`: Added `#ifdef __ANDROID__` path using `AAssetManager` + `AAsset_*` functions
+- `MG_Asset_SetAssetManager(void*)` exported for init from C# (called from `OpenXRGameActivity`)
+- Absolute paths fall back to standard `fopen()` for external storage access
+- APK-bundled content accessible via `AAssetManager_open()` with `AASSET_MODE_RANDOM`
+
+#### Task 7.2: MonoGame.Framework.Android.OpenXR.csproj
+- Created framework project targeting `net8.0-android` with minimum API 29
+- Uses `ANDROID;NATIVE;OPENXR` defines — Native platform layer (P/Invoke to mgruntime) instead of managed GLES
+- Includes `Platform/Native/**`, `XR/**`, and Android-specific compatibility files
+
+#### Task 7.3: OpenXRGameActivity for Quest
+- Created `Platform/Android/OpenXR/OpenXRGameActivity.cs`
+- Simplified Activity: no SurfaceView, no EGL — rendering handled by native Vulkan + OpenXR
+- Loads `openxr_loader` and `mgruntime` native libraries
+- Passes Android JNI context to native code via `MGXR_SetAndroidContext()`
+- Sets immersive VR flags (fullscreen, no system UI, keep screen on)
+
+#### Task 7.4: Native Android Modifications
+- Added JNI bridge to `MGXR_openxr.cpp`: `JNI_OnLoad()` captures JavaVM, `MGXR_SetAndroidContext()` export
+- Added `XrInstanceCreateInfoAndroidKHR` chaining in `MGXR_System_Create()` for Android
+- Added Android logging macros via `__android_log_print`
+- Added `MGXR.SetAndroidContext()` P/Invoke declaration to `XR.Interop.cs`
+
+#### Task 7.5: Quest-Specific Vulkan Modifications
+- Modified `MGG_Vulkan.cpp` to skip volk on Android (`#if !defined(__APPLE__) && !defined(__ANDROID__)`)
+- Added `#include <vulkan/vulkan_android.h>` for Android-specific Vulkan types
+- Android uses system Vulkan prototypes directly — no dynamic loading needed
+- `volkInitialize()` and `volkLoadInstance()` bypassed on Android (same as macOS/MoltenVK)
+
+#### Task 7.6: NuGet Package for Quest Runtime
+- Created `src/NuGetPackages/MonoGame.Runtime.Android.OpenXR/` (follows existing pattern)
+- References `libmgruntime.so` and `libopenxr_loader.so` from Android ARM64 artifacts
+- Updated `BuildNativeTask.cs` to pack Android runtime NuGet when artifacts exist
+
+#### Task 7.7: Quest Project Template
+- Created `MonoGame.Application.Quest.CSharp` template in `external/MonoGame.Templates/`
+  (shortName: `mgquest`, usable via `dotnet new mgquest -n MyVRGame`)
+- Includes `Activity1.cs` extending `OpenXRGameActivity`, `Game1.cs` with stereo VR rendering
+- `AndroidManifest.xml` with Quest VR metadata (VR-only, Vulkan required, Quest 2/3/Pro support)
+- References `MonoGame.Framework.Android.OpenXR` and `MonoGame.Runtime.Android.OpenXR`
+
+## 3.8.4 Release- April 2nd - 2025
 
 Fastest MonoGame release to date!  WIth a total of 7 Previews, all vetted by the community.
 

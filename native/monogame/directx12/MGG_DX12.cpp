@@ -467,7 +467,9 @@ void MGG_GraphicsDevice_ResizeSwapchain(
 {
 #if !defined(_GAMING_XBOX)
 
-#if defined(MG_SDL2)
+#if defined(MG_OPENXR)
+	// OpenXR mode — no window, swapchain managed by the XR runtime
+#elif defined(MG_SDL2)
 	auto sdl_window = (SDL_Window*)nativeWindowHandle;
 
 	SDL_SysWMinfo windowInfo;
@@ -1989,3 +1991,96 @@ mgbyte MGG_OcclusionQuery_GetResult(MGG_GraphicsDevice* device, MGG_OcclusionQue
 
 	return true;
 }
+
+// ============================================================================
+// OpenXR integration (DX12)
+// ============================================================================
+
+#if defined(MG_OPENXR)
+
+#include <unordered_map>
+
+struct MGXR_System;
+extern "C" void MGXR_System_GetAdapterLuid(MGXR_System* system, int64_t* outLuidLow, int64_t* outLuidHigh);
+
+static MGXR_System* g_xrSystem = nullptr;
+
+// Cache XR swapchain textures by ID3D12Resource pointer so they persist across eyes/frames.
+static std::unordered_map<void*, Texture*> g_xrTextureCache;
+static Texture* g_xrDepthTexture = nullptr;
+
+// Called by C# before MGG_GraphicsSystem_Create to provide the XR system
+// for adapter LUID matching during device creation.
+extern "C" void MGG_SetXRSystem(void* xrSystem)
+{
+	g_xrSystem = (MGXR_System*)xrSystem;
+}
+
+// Returns opaque graphics device handles for OpenXR session creation.
+// Fills the MGXR_DeviceHandles struct with DX12-specific handles.
+extern "C" void MGG_GraphicsDevice_GetDeviceHandles(void* devicePtr, void* outHandles)
+{
+	auto* device = (MGG_GraphicsDevice*)devicePtr;
+	if (!device || !device->resources || !outHandles) return;
+
+	// Layout: handle0=ID3D12Device*, handle1=ID3D12CommandQueue*, handle2-4=unused
+	auto* h = (void**)outHandles;
+	h[0] = (void*)device->resources->GetD3DDevice();
+	h[1] = (void*)device->resources->GetCommandQueue();
+	h[2] = nullptr;
+	auto* uints = (uint32_t*)&h[3];
+	uints[0] = 0;
+	uints[1] = 0;
+}
+
+// Bridge function: configures an OpenXR swapchain ID3D12Resource as the device render target.
+// Called from MGXR_openxr.cpp to connect OpenXR swapchain images to the DX12 device.
+extern "C" void MGG_GraphicsDevice_SetXRSwapchainImage(
+	void* devicePtr, void* d3d12Resource, mgint width, mgint height,
+	mgint format, mgint imageIndex, mgint imageCount)
+{
+	auto* device = (MGG_GraphicsDevice*)devicePtr;
+	if (!device || !d3d12Resource) return;
+
+	auto* resource = (ID3D12Resource*)d3d12Resource;
+
+	// Look up or create a cached texture for this ID3D12Resource
+	Texture* texture = nullptr;
+	auto it = g_xrTextureCache.find(d3d12Resource);
+	if (it != g_xrTextureCache.end())
+	{
+		texture = it->second;
+	}
+	else
+	{
+		// Create a new texture wrapper for the OpenXR-provided D3D12 resource
+		texture = new Texture(
+			SurfaceType::RenderTarget,
+			TextureDimension::Texture2D,
+			(int)width, (int)height, 1,
+			MGSurfaceFormat::Color);
+
+		// Override the internal resource with the OpenXR-provided one
+		// The texture takes a non-owning reference — OpenXR owns the resource lifetime
+		texture->GetAddressOf()[0] = resource;
+		resource->AddRef(); // prevent accidental release by ComPtr
+
+		// Create RTV descriptor
+		texture->Create(device->resources, true);
+
+		g_xrTextureCache[d3d12Resource] = texture;
+	}
+
+	// Create or reuse a matching depth texture
+	if (!g_xrDepthTexture)
+	{
+		g_xrDepthTexture = new Texture((int)width, (int)height, MGDepthFormat::Depth24Stencil8);
+		g_xrDepthTexture->Create(device->resources);
+	}
+
+	// Set as the active render target via the command context
+	Texture* colorTargets[] = { texture };
+	device->context->SetRenderTarget((void*)colorTargets, 1, g_xrDepthTexture);
+}
+
+#endif // MG_OPENXR

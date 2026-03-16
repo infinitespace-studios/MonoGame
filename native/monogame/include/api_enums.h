@@ -297,6 +297,7 @@ enum class MGEventType : mguint
     ControllerStateChange = 15,
     DropFile = 16,
     DropComplete = 17,
+    VRControllerPose = 18,
 };
 
 enum class MGKeys : mgint
@@ -521,6 +522,7 @@ enum class MGMonoGamePlatform : mgint
     PlayStation5 = 10,
     NintendoSwitch = 11,
     DesktopVK = 12,
+    OpenXR = 13,
 };
 
 enum class MGGraphicsBackend : mgint
@@ -560,5 +562,34 @@ enum class MGGamePadType : mgint
     AlternateGuitar = 7,
     DrumKit = 8,
     BigButtonPad = 768,
+};
+
+enum class MGXRSessionState : mgint
+{
+    Unknown = 0,
+    Idle = 1,
+    Ready = 2,
+    Synchronized = 3,
+    Visible = 4,
+    Focused = 5,
+    Stopping = 6,
+    LossPending = 7,
+    Exiting = 8,
+};
+
+enum class MGXRReferenceSpaceType : mgint
+{
+    View = 0,
+    Local = 1,
+    Stage = 2,
+};
+
+enum class MGXRActionType : mgint
+{
+    Boolean = 0,
+    Float = 1,
+    Vector2 = 2,
+    Pose = 3,
+    Haptic = 4,
 };
 

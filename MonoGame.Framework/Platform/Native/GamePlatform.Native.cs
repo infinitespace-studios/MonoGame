@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using MonoGame.Interop;
 using System.Threading;
+using Microsoft.Xna.Framework.XR;
 
 namespace Microsoft.Xna.Framework;
 
@@ -21,6 +22,8 @@ class NativeGamePlatform : GamePlatform
 {
     internal unsafe MGP_Platform* Handle;
 
+    internal static NativeGamePlatform Instance { get; private set; }
+
     private static unsafe MGG_GraphicsSystem* _system;
 
     private NativeGameWindow _window;
@@ -29,8 +32,20 @@ class NativeGamePlatform : GamePlatform
 
     private int _isExiting;
 
+    [DllImport("libc", EntryPoint = "_exit")]
+    private static extern void _exit(int status);
+
     public unsafe NativeGamePlatform(Game game) : base(game)
     {
+        Instance = this;
+
+#if OPENXR
+        // Wire up bidirectional reference like AndroidGamePlatform does.
+        // Game.Activity was set in OpenXRGameActivity.OnCreate() before Game was constructed.
+        if (Game.Activity is OpenXRGameActivity openXRActivity)
+            openXRActivity.Game = game;
+#endif
+
         GameRunBehavior behavior;
         Handle = MGP.Platform_Create(out behavior);
 
@@ -44,6 +59,7 @@ class NativeGamePlatform : GamePlatform
         MessageBox._window = _window._handle;
         GamePad.Handle = Handle;
         OnIsMouseVisibleChanged();
+        XRPlatformHelper.Initialize(Handle);
     }
 
     internal static unsafe MGG_GraphicsSystem* GraphicsSystem
@@ -70,11 +86,7 @@ class NativeGamePlatform : GamePlatform
 
         while (true)
         {
-            PollEvents();
-
-            Game.Tick();
-
-            Threading.Run();
+            RunOneLoop();
 
             if (_isExiting > 0 && ShouldExit())
                 break;
@@ -83,8 +95,21 @@ class NativeGamePlatform : GamePlatform
         }
     }
 
+    private unsafe void RunOneLoop()
+    {
+        PollEvents();
+
+        Game.Tick();
+
+        Threading.Run();
+    }
+
     private unsafe void PollEvents()
     {
+#if OPENXR
+        VRController.UpdateTrackingState();
+#endif
+
         MGP_Event event_;
         while (MGP.Platform_PollEvent(Handle, out event_) != 0)
         {
@@ -230,6 +255,12 @@ class NativeGamePlatform : GamePlatform
                 case EventType.ControllerStateChange:
                 {
                     GamePad.ChangeState(event_.Controller.Id, event_.Timestamp, event_.Controller.Input, event_.Controller.Value);
+#if OPENXR
+                    // Dispatch per-hand state to VRController based on input mapping
+                    int hand = GetVRHand(event_.Controller.Input);
+                    if (hand >= 0)
+                        VRController.ChangeState(hand, event_.Controller.Input, event_.Controller.Value);
+#endif
                     break;
                 }
 
@@ -248,6 +279,22 @@ class NativeGamePlatform : GamePlatform
                     _dropList.Clear();
                     break;
                 }
+
+#if OPENXR
+                case EventType.VRControllerPose:
+                {
+                    var pose = new XR.XRPose
+                    {
+                        Position = new System.Numerics.Vector3(
+                            event_.VRPose.PosX, event_.VRPose.PosY, event_.VRPose.PosZ),
+                        Orientation = new System.Numerics.Quaternion(
+                            event_.VRPose.OriX, event_.VRPose.OriY, event_.VRPose.OriZ, event_.VRPose.OriW),
+                    };
+                    VRController.UpdatePose(event_.VRPose.Hand, event_.VRPose.PoseType, pose,
+                        (XR.XRSpaceLocationFlags)event_.VRPose.Flags);
+                    break;
+                }
+#endif
             }
         }
     }
@@ -264,15 +311,91 @@ class NativeGamePlatform : GamePlatform
         return true;
     }
 
+#if OPENXR
+    // Maps a ControllerInput to a VR hand index (0=left, 1=right, -1=unknown)
+    private static int GetVRHand(ControllerInput input)
+    {
+        switch (input)
+        {
+            case ControllerInput.LeftTrigger:
+            case ControllerInput.LeftStickX:
+            case ControllerInput.LeftStickY:
+            case ControllerInput.LeftStick:
+            case ControllerInput.LeftShoulder:
+            case ControllerInput.X:
+            case ControllerInput.Y:
+            case ControllerInput.Start:
+                return 0; // Left hand
+
+            case ControllerInput.RightTrigger:
+            case ControllerInput.RightStickX:
+            case ControllerInput.RightStickY:
+            case ControllerInput.RightStick:
+            case ControllerInput.RightShoulder:
+            case ControllerInput.A:
+            case ControllerInput.B:
+            case ControllerInput.Back:
+                return 1; // Right hand
+
+            default:
+                return -1;
+        }
+    }
+#endif
+
     public override void Present()
     {
         if (Game.GraphicsDevice != null)
             Game.GraphicsDevice.Present();
+        XRPlatformHelper.EndFrame();
     }
+
+    // Delegate type matching the native MGP_FrameCallback typedef: int (*)(void)
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    private delegate int FrameCallbackDelegate();
+
+    // Must be stored as a field to prevent GC collection while native code holds the pointer.
+    private static FrameCallbackDelegate _frameCallbackDelegate;
 
     public override unsafe void StartRunLoop()
     {
-        MGP.Platform_StartRunLoop(Handle);
+        if (DefaultRunBehavior == GameRunBehavior.Synchronous)
+        {
+            // Desktop platforms use synchronous mode — delegate to native.
+            MGP.Platform_StartRunLoop(Handle);
+            return;
+        }
+
+        // Async platforms: pass a managed callback to the native layer.
+        // The native side decides how to run it (pthread on Android,
+        // emscripten_set_main_loop on WASM, etc.) and returns immediately.
+        _window.Show(true);
+
+        _frameCallbackDelegate = RunOneLoopCallback;
+        var callbackPtr = Marshal.GetFunctionPointerForDelegate(_frameCallbackDelegate);
+        MGP.Platform_StartRunLoopAsync(Handle, callbackPtr);
+    }
+
+    private static int RunOneLoopCallback()
+    {
+        var self = Instance;
+
+        self.PollEvents();
+        self.Game.Tick();
+        Threading.Run();
+
+        if (XRPlatformHelper.ExitRequested)
+            Interlocked.Increment(ref self._isExiting);
+
+        if (self._isExiting > 0 && self.ShouldExit())
+        {
+            XRPlatformHelper.ShutdownSession();
+            self.RaiseAsyncRunLoopEnded();
+            return 1; // Signal native loop to stop
+        }
+
+        self._isExiting = 0;
+        return 0; // Continue
     }
 
     public override unsafe void BeforeInitialize()
@@ -287,6 +410,10 @@ class NativeGamePlatform : GamePlatform
             var pp = Game.GraphicsDevice.PresentationParameters;
             _window.OnPresentationChanged(pp);
         }
+
+        // After graphics device is available, configure OpenXR swapchain
+        if (Game.GraphicsDevice != null)
+            XRPlatformHelper.OnGraphicsDeviceCreated(Game.GraphicsDevice);
 
         base.BeforeInitialize();        
     }
@@ -303,6 +430,8 @@ class NativeGamePlatform : GamePlatform
 
     public override unsafe bool BeforeDraw(GameTime gameTime)
     {
+        if (!XRPlatformHelper.BeginFrame(Game.GraphicsDevice))
+            return false;
         return MGP.Platform_BeforeDraw(Handle) == 0 ? false : true;
     }
 
@@ -334,6 +463,8 @@ class NativeGamePlatform : GamePlatform
 
     protected unsafe override void Dispose(bool disposing)
     {
+        XRPlatformHelper.Shutdown();
+
         if (_window != null)
         {
             _window.Destroy();
@@ -354,5 +485,12 @@ class NativeGamePlatform : GamePlatform
         }
 
         base.Dispose(disposing);
+
+        // Meta XR Simulator on macOS crashes on exit due to a double-free in its shared library destructor
+        // during .NET process teardown. We must use _exit(0) to bypass atexit handlers and avoid this crash.
+        if (XRPlatformHelper.IsXRPlatform && RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            _exit(0);
+        }
     }
 }

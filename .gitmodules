@@ -30,4 +30,7 @@
 	url = https://github.com/MonoGame/CppNet.git
 [submodule "native/monogame/external/faudio"]
 	path = native/monogame/external/faudio
-	url = https://github.com/FNA-XNA/FAudio.git
+	url = https://github.com/infinitespace-studios/FAudio.git
+[submodule "native/monogame/external/openxr-sdk"]
+	path = native/monogame/external/openxr-sdk
+	url = https://github.com/KhronosGroup/OpenXR-SDK.git

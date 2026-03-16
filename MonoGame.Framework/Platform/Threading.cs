@@ -224,7 +224,7 @@ namespace Microsoft.Xna.Framework
                     EAGLContext.SetCurrentContext(BackgroundContext);
 #endif
 
-#if ANDROID
+#if ANDROID && !NATIVE
             //if (!Game.Instance.Window.GraphicsContext.IsCurrent)
                 ((AndroidGameWindow)Game.Instance.Window).GameView.MakeCurrent();
 #endif

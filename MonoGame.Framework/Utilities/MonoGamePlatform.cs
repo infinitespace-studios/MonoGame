@@ -73,5 +73,10 @@ namespace MonoGame.Framework.Utilities
         /// Cross platform desktop using Vulkan.
         /// </summary>
         DesktopVK,
+
+        /// <summary>
+        /// OpenXR platform for VR/XR headsets.
+        /// </summary>
+        OpenXR,
     }
 }

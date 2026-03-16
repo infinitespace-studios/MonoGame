@@ -156,6 +156,9 @@ internal static unsafe partial class MGG
 
     #region Graphics System
 
+    // OpenXR-only: sets the XR system for Vulkan instance/device creation via vulkan_enable2
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGG_SetXRSystem", ExactSpelling = true)]
+    public static extern void SetXRSystem(nint xrSystem);
     
     [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGG_GraphicsSystem_Create", ExactSpelling = true)]
     public static extern MGG_GraphicsSystem* GraphicsSystem_Create();

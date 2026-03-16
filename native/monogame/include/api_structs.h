@@ -219,6 +219,15 @@ struct MGP_ControllerEvent
     mgshort Value;
 };
 
+struct MGP_VRPoseEvent
+{
+    mgint Hand;         // 0=left, 1=right
+    mgint PoseType;     // 0=aim, 1=grip
+    mgfloat PosX, PosY, PosZ;
+    mgfloat OriX, OriY, OriZ, OriW;
+    mgint Flags;        // XrSpaceLocationFlags from xrLocateSpace
+};
+
 #pragma pack(push,1)
 struct MGP_Event
 {
@@ -232,6 +241,7 @@ union {
     MG_FIELD_OFFSET(12, MGP_DropEvent, Drop);
     MG_FIELD_OFFSET(12, MGP_WindowEvent, Window);
     MG_FIELD_OFFSET(12, MGP_ControllerEvent, Controller);
+    MG_FIELD_OFFSET(12, MGP_VRPoseEvent, VRPose);
 };
 };
 #pragma pack(pop)
@@ -245,5 +255,25 @@ struct MGP_ControllerCaps
     mgbool HasLeftVibrationMotor;
     mgbool HasRightVibrationMotor;
     mgbool HasVoiceSupport;
+};
+
+struct MGXR_Pose
+{
+    mgfloat PositionX;
+    mgfloat PositionY;
+    mgfloat PositionZ;
+    mgfloat OrientationX;
+    mgfloat OrientationY;
+    mgfloat OrientationZ;
+    mgfloat OrientationW;
+};
+
+struct MGXR_ViewProjection
+{
+    MGXR_Pose Pose;
+    mgfloat FovAngleLeft;
+    mgfloat FovAngleRight;
+    mgfloat FovAngleUp;
+    mgfloat FovAngleDown;
 };
 

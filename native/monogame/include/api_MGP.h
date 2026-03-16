@@ -16,11 +16,14 @@ struct MGP_Platform;
 struct MGP_Window;
 struct MGP_Cursor;
 
+typedef int (*MGP_FrameCallback)(void);
+
 MG_EXPORT MGP_Platform* MGP_Platform_Create(MGGameRunBehavior& behavior);
 MG_EXPORT void MGP_Platform_Destroy(MGP_Platform* platform);
 MG_EXPORT void MGP_Platform_BeforeInitialize(MGP_Platform* platform);
 MG_EXPORT mgbyte MGP_Platform_PollEvent(MGP_Platform* platform, MGP_Event& event_);
 MG_EXPORT void MGP_Platform_StartRunLoop(MGP_Platform* platform);
+MG_EXPORT void MGP_Platform_StartRunLoopAsync(MGP_Platform* platform, MGP_FrameCallback callback);
 MG_EXPORT mgbyte MGP_Platform_BeforeRun(MGP_Platform* platform);
 MG_EXPORT mgbyte MGP_Platform_BeforeUpdate(MGP_Platform* platform);
 MG_EXPORT mgbyte MGP_Platform_BeforeDraw(MGP_Platform* platform);

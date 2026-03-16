@@ -21,9 +21,19 @@
 
 #if defined(__APPLE__)
 #include <MoltenVK/mvk_vulkan.h>
+#elif defined(__ANDROID__)
+// Android: Vulkan is a system library — prototypes are directly available
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_android.h>
+#include <android/log.h>
+#define MGG_LOGI(...) __android_log_print(ANDROID_LOG_INFO, "MonoGame-VK", __VA_ARGS__)
 #else
 #define VK_NO_PROTOTYPES
 #include <vulkan/vulkan.h>
+#endif
+
+#ifndef MGG_LOGI
+#define MGG_LOGI(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
 #ifdef DEBUG
@@ -33,7 +43,9 @@
 #endif
 #endif
 
-#ifndef __APPLE__
+// Volk dynamic loader — only on platforms without native Vulkan prototypes
+// macOS uses MoltenVK, Android uses system Vulkan — both provide prototypes directly
+#if !defined(__APPLE__) && !defined(__ANDROID__)
 #define VOLK_IMPLEMENTATION
 #include <volk.h>
 #endif
@@ -44,6 +56,27 @@
 
 #if defined(MG_SDL2)
 #include <SDL_vulkan.h>
+#endif
+
+#if defined(MG_OPENXR)
+// Forward declarations for OpenXR Vulkan wrappers (implemented in MGXR_openxr.cpp).
+// These wrap vkCreateInstance/vkCreateDevice through the OpenXR runtime so it can
+// initialize its internal Vulkan state (required by XR_KHR_vulkan_enable2).
+struct MGXR_System;
+extern "C" mgint MGXR_System_CreateVulkanInstance(MGXR_System* system,
+    void* pfnGetInstanceProcAddr, void* vkCreateInfo, void** outVkInstance);
+extern "C" mgint MGXR_System_GetVulkanPhysicalDevice(MGXR_System* system,
+    void* vkInstance, void** outPhysicalDevice);
+extern "C" mgint MGXR_System_CreateVulkanDevice(MGXR_System* system,
+    void* pfnGetInstanceProcAddr, void* vkPhysicalDevice,
+    void* vkCreateInfo, void** outVkDevice);
+static MGXR_System* g_xrSystem = nullptr;
+
+#include <unordered_map>
+// Cache XR swapchain textures by VkImage handle so they persist across eyes/frames.
+// Without this, BeginEye(right) would destroy the left eye's VkImageView while
+// the command buffer still references it in the recorded render pass.
+static std::unordered_map<VkImage, MGG_Texture*> g_xrTextureCache;
 #endif
 
 #ifdef _WIN32
@@ -211,6 +244,7 @@ struct MGG_GraphicsDevice
 	VkDevice device = VK_NULL_HANDLE;
 	VkQueue queue = VK_NULL_HANDLE;
 	VkCommandPool cmdPool = VK_NULL_HANDLE;
+	uint32_t queueFamilyIndex = 0;
 
 	VmaAllocator allocator = VK_NULL_HANDLE;
 
@@ -235,6 +269,9 @@ struct MGG_GraphicsDevice
 
 #if defined(MG_SDL2)
 	SDL_Window* window = nullptr;
+#elif defined(MG_OPENXR)
+	// OpenXR mode: no window surface — swapchain images come from OpenXR
+	bool openxrMode = true;
 #else
 #error Not Implemented
 #endif
@@ -744,9 +781,18 @@ static bool SupportsExtension(const std::vector<VkExtensionProperties>& supporte
 	return false;
 }
 
+#if defined(MG_OPENXR)
+// Called by C# before MGG_GraphicsSystem_Create to provide the XR system
+// for Vulkan instance/device creation via vulkan_enable2 wrappers.
+extern "C" void MGG_SetXRSystem(void* xrSystem)
+{
+    g_xrSystem = (MGXR_System*)xrSystem;
+}
+#endif
+
 MGG_GraphicsSystem* MGG_GraphicsSystem_Create()
 {
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(__ANDROID__)
 	auto err = volkInitialize();
 	if (err != VK_SUCCESS)
 	{
@@ -786,6 +832,13 @@ MGG_GraphicsSystem* MGG_GraphicsSystem_Create()
 		// This call returns the extensions that SDL needs for the created instance.
 		SDL_Vulkan_GetInstanceExtensions(nullptr, &count, instanceExtensions.data());
 	}
+#elif defined(MG_OPENXR)
+	// OpenXR mode: no SDL surface extensions needed.
+	// On macOS/MoltenVK we must enable portability enumeration so Vulkan can find drivers.
+#ifdef __APPLE__
+	if (SupportsExtension(supportedInstanceExtensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME))
+		instanceExtensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+#endif
 #endif
 
 	// Check instance-level extensions support or if they are core in this instance
@@ -846,16 +899,31 @@ MGG_GraphicsSystem* MGG_GraphicsSystem_Create()
 	instance_create_info.ppEnabledLayerNames = enabledLayers.data();
 	instance_create_info.pNext = nullptr;
 
+#ifdef __APPLE__
+	// MoltenVK requires portability enumeration to discover drivers
+	instance_create_info.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
+#endif
+
 	VkInstance instance = VK_NULL_HANDLE;
 
-	err = vkCreateInstance(&instance_create_info, nullptr, &instance);
+#if defined(MG_OPENXR)
+	if (g_xrSystem)
+	{
+		err = (VkResult)MGXR_System_CreateVulkanInstance(g_xrSystem,
+			(void*)&vkGetInstanceProcAddr, &instance_create_info, (void**)&instance);
+	}
+	else
+#endif
+	{
+		err = vkCreateInstance(&instance_create_info, nullptr, &instance);
+	}
 	if (err != VK_SUCCESS)
 	{
-		printf("Failed to create Vulkan instance!\n");
+		printf("Failed to create Vulkan instance! err=%d\n", (int)err);
 		return nullptr;
 	}
 
-#ifndef __APPLE__
+#if !defined(__APPLE__) && !defined(__ANDROID__)
 	volkLoadInstance(instance);
 #endif
 
@@ -875,6 +943,24 @@ MGG_GraphicsSystem* MGG_GraphicsSystem_Create()
 			res = vkEnumeratePhysicalDevices(system->instance, &count, gpus.data());
 			if (res == VK_SUCCESS)
 			{
+#if defined(MG_OPENXR)
+				// Ask the OpenXR runtime which physical device it wants.
+				// Put it first so MonoGame selects it as the default adapter.
+				VkPhysicalDevice xrPhysicalDevice = VK_NULL_HANDLE;
+				if (g_xrSystem)
+				{
+					MGXR_System_GetVulkanPhysicalDevice(g_xrSystem,
+						system->instance, (void**)&xrPhysicalDevice);
+				}
+				if (xrPhysicalDevice != VK_NULL_HANDLE)
+				{
+					// Move XR-preferred device to front
+					auto it = std::find(gpus.begin(), gpus.end(), xrPhysicalDevice);
+					if (it != gpus.end() && it != gpus.begin())
+						std::iter_swap(gpus.begin(), it);
+				}
+#endif
+
 				for (const auto& gpu : gpus)
 				{
 					auto adapter = new MGG_GraphicsAdapter();
@@ -939,6 +1025,7 @@ void MGG_GraphicsAdapter_GetInfo(MGG_GraphicsAdapter* adapter, MGG_GraphicsAdapt
 	info.MonitorHandle = 0;
 
 	// Get the number of display modes for the primary display
+#if defined(MG_SDL2)
 	int displayIndex = 0; // Primary display
 	int numModes = SDL_GetNumDisplayModes(displayIndex);
 	
@@ -998,6 +1085,21 @@ void MGG_GraphicsAdapter_GetInfo(MGG_GraphicsAdapter* adapter, MGG_GraphicsAdapt
 			info.CurrentDisplayMode.format = MGSurfaceFormat::Color;
 		}
 	}
+#elif defined(MG_OPENXR)
+	// In VR mode, report a single display mode matching the HMD recommended resolution.
+	// Actual resolution comes from OpenXR at runtime.
+	if (adapter->modes.size() == 0)
+	{
+		MGG_DisplayMode vrMode;
+		vrMode.width = 1832;  // Quest 2 per-eye recommended width
+		vrMode.height = 1920; // Quest 2 per-eye recommended height
+		vrMode.format = MGSurfaceFormat::Color;
+		adapter->modes.push_back(vrMode);
+	}
+	info.CurrentDisplayMode.width = 1832;
+	info.CurrentDisplayMode.height = 1920;
+	info.CurrentDisplayMode.format = MGSurfaceFormat::Color;
+#endif
 	info.DisplayModeCount = adapter->modes.size();
 	info.DisplayModes = adapter->modes.data();
 }
@@ -1274,6 +1376,7 @@ MGG_GraphicsDevice* MGG_GraphicsDevice_Create(MGG_GraphicsSystem* system, MGG_Gr
 	bool scalarBlockLayoutSupported = false;
 	bool hlslFunctionalitySupported = false;
 	bool userTypeSupported = false;
+	bool portabilitySubsetSupported = false;
 
 	for (const auto& extension : deviceExtensions)
 	{
@@ -1287,6 +1390,8 @@ MGG_GraphicsDevice* MGG_GraphicsDevice_Create(MGG_GraphicsSystem* system, MGG_Gr
 			hlslFunctionalitySupported = true;
 		if (strcmp(extension.extensionName, VK_GOOGLE_USER_TYPE_EXTENSION_NAME) == 0)
 			userTypeSupported = true;
+		if (strcmp(extension.extensionName, "VK_KHR_portability_subset") == 0)
+			portabilitySubsetSupported = true;
 	}
 
 	if (!swapChainSupported)
@@ -1311,6 +1416,8 @@ MGG_GraphicsDevice* MGG_GraphicsDevice_Create(MGG_GraphicsSystem* system, MGG_Gr
 
 	std::vector<const char*> extensions;
 	extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+	if (portabilitySubsetSupported)
+		extensions.push_back("VK_KHR_portability_subset");
 
 	VkPhysicalDeviceFeatures enabledFeatures = {};
 	if (device->deviceFeatures.sampleRateShading)
@@ -1373,7 +1480,19 @@ MGG_GraphicsDevice* MGG_GraphicsDevice_Create(MGG_GraphicsSystem* system, MGG_Gr
 	deviceCreateInfo.enabledExtensionCount = extensions.size();
 	deviceCreateInfo.ppEnabledExtensionNames = extensions.data();
 
-	auto res = vkCreateDevice(device->physicalDevice, &deviceCreateInfo, NULL, &device->device);
+	VkResult res;
+#if defined(MG_OPENXR)
+	if (g_xrSystem)
+	{
+		res = (VkResult)MGXR_System_CreateVulkanDevice(g_xrSystem,
+			(void*)&vkGetInstanceProcAddr, device->physicalDevice,
+			&deviceCreateInfo, (void**)&device->device);
+	}
+	else
+#endif
+	{
+		res = vkCreateDevice(device->physicalDevice, &deviceCreateInfo, NULL, &device->device);
+	}
 	VK_CHECK_RESULT(res);
 	VK_SET_OBJECT_NAME(device->device, device->device, VK_OBJECT_TYPE_DEVICE, "MGG_GraphicsDevice.device");
 	VK_SET_OBJECT_NAME(device->device, device->physicalDevice, VK_OBJECT_TYPE_PHYSICAL_DEVICE, "MGG_GraphicsDevice.physicalDevice");
@@ -1385,6 +1504,7 @@ MGG_GraphicsDevice* MGG_GraphicsDevice_Create(MGG_GraphicsSystem* system, MGG_Gr
 	vmaCreateAllocator(&allocatorInfo, &device->allocator);
 
 	vkGetDeviceQueue(device->device, queueFamilyIndex, 0, &device->queue);
+	device->queueFamilyIndex = queueFamilyIndex;
 
 	VkCommandPoolCreateInfo cmdPoolInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
 	cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -1599,6 +1719,30 @@ void MGG_GraphicsDevice_Destroy(MGG_GraphicsDevice* device)
 	for (int i=0; i < 3; i++)
 		MGG_Texture_Destroy(device, device->nullTexture[i]);
 
+#if defined(MG_OPENXR)
+	// Clean up XR swapchain texture cache. We own the VkImageView and depth
+	// textures, but NOT the VkImage (owned by the XR runtime).
+	for (auto& pair : g_xrTextureCache)
+	{
+		auto* texture = pair.second;
+		if (texture->depthTexture)
+		{
+			if (texture->depthTexture->target_view != VK_NULL_HANDLE)
+				vkDestroyImageView(device->device, texture->depthTexture->target_view, nullptr);
+			if (texture->depthTexture->view != VK_NULL_HANDLE)
+				vkDestroyImageView(device->device, texture->depthTexture->view, nullptr);
+			vmaDestroyImage(device->allocator, texture->depthTexture->image, texture->depthTexture->allocation);
+			delete texture->depthTexture;
+		}
+		if (texture->target_view != VK_NULL_HANDLE)
+			vkDestroyImageView(device->device, texture->target_view, nullptr);
+		if (texture->view != VK_NULL_HANDLE)
+			vkDestroyImageView(device->device, texture->view, nullptr);
+		delete texture;
+	}
+	g_xrTextureCache.clear();
+#endif
+
 	for (size_t i = 0; i < device->swapchainCount; i++)
 		MGVK_DestroyFrameResources(device, i, true);
 
@@ -1637,7 +1781,6 @@ void MGVK_RecreateSwapChain(
 	mgint syncInterval)
 {
 	assert(device != nullptr);
-	assert(nativeWindowHandle != nullptr);
 
 	// Be sure we're done drawing.
 	vkDeviceWaitIdle(device->device);
@@ -1646,6 +1789,7 @@ void MGVK_RecreateSwapChain(
 
 	// Create the surface.
 #if defined(MG_SDL2)
+	assert(nativeWindowHandle != nullptr);
 	auto sdl_window = (SDL_Window*)nativeWindowHandle;
 	if (sdl_window != device->window)
 	{
@@ -1658,6 +1802,79 @@ void MGVK_RecreateSwapChain(
 		VK_SET_OBJECT_NAME(device->device, (uint64_t)device->surface, VK_OBJECT_TYPE_SURFACE_KHR, "MGG_GraphicsDevice.surface");
 
 		device->window = sdl_window;
+	}
+#elif defined(MG_OPENXR)
+	// In OpenXR mode, there is no VkSurfaceKHR or VkSwapchainKHR.
+	// Swapchain images are provided by the OpenXR runtime via MGXR_Swapchain.
+	// The C# layer handles swapchain management via MGXR_* calls.
+	// Here we just record the dimensions and set up frame state if needed.
+	{
+		cleanupSwapChain(device);
+
+		device->swapchainWidth = width;
+		device->swapchainHeight = height;
+		device->colorFormat = vkColor;
+		device->depthFormat = vkDepth;
+
+		// For OpenXR, we use a fixed frame count (typically 3 for triple buffering)
+		uint32_t frameCount = 3;
+		if (frameCount != device->swapchainCount)
+		{
+			if (device->swapchains != nullptr)
+			{
+				for (size_t i = 0; i < device->swapchainCount; i++)
+				{
+					auto& swap = device->swapchains[i];
+
+					vkDestroySemaphore(device->device, swap.renderCompleteSemaphore, nullptr);
+					vkDestroyFence(device->device, swap.completedFence, nullptr);
+
+					if (swap.uniforms)
+						MGG_Buffer_Destroy(device, swap.uniforms);
+
+					MGVK_DestroyFrameResources(device, i, true);
+				}
+				delete[] device->swapchains;
+				device->swapchains = nullptr;
+			}
+
+			MGVK_ProcessDescriptorCaches(device, 0);
+
+			device->swapchainCount = frameCount;
+			device->freeFrames = device->swapchainCount + 1;
+
+			VkCommandBufferAllocateInfo comBufferInfo =
+			{
+				VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+				NULL,
+				device->cmdPool,
+				VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+				1
+			};
+
+			device->swapchains = new MGVK_SwapchainImage[device->swapchainCount];
+
+			for (uint32_t i = 0; i < device->swapchainCount; i++)
+			{
+				auto& swap = device->swapchains[i];
+
+				res = vkAllocateCommandBuffers(device->device, &comBufferInfo, &swap.commandBuffer);
+				VK_CHECK_RESULT(res);
+
+				VkSemaphoreCreateInfo semaphore_create_info = { VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+				res = vkCreateSemaphore(device->device, &semaphore_create_info, NULL, &swap.renderCompleteSemaphore);
+				VK_CHECK_RESULT(res);
+
+				VkFenceCreateInfo fence_create_info = { VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+				fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+				res = vkCreateFence(device->device, &fence_create_info, NULL, &swap.completedFence);
+				VK_CHECK_RESULT(res);
+			}
+		}
+
+		// OpenXR swapchain images are not managed here — they come from
+		// MGXR_Swapchain and are used directly as render targets.
+		return;
 	}
 #else
 #error Not Implemented
@@ -1978,7 +2195,11 @@ void MGVK_RecreateSwapChain(MGG_GraphicsDevice* device)
 
 	MGVK_RecreateSwapChain(
 		device,
+#if defined(MG_SDL2)
 		device->window,
+#elif defined(MG_OPENXR)
+		nullptr,
+#endif
 		device->swapchainWidth,
 		device->swapchainHeight,
 		device->colorFormat,
@@ -2066,16 +2287,100 @@ void MGVK_BeginFrame(VkCommandBuffer commandBuffer)
 	//vkCmdSetDepthClampEnableEXT(commandBuffer, VK_TRUE);
 }
 
+#if defined(MG_OPENXR)
+// Bridge function: configures an OpenXR swapchain VkImage as the device backbuffer.
+// Called from MGXR_openxr.cpp to connect OpenXR swapchain images to the Vulkan device.
+extern "C" void MGG_GraphicsDevice_SetXRSwapchainImage(
+	void* devicePtr, VkImage image, mgint width, mgint height,
+	VkFormat format, mgint imageIndex, mgint imageCount)
+{
+	auto* device = (MGG_GraphicsDevice*)devicePtr;
+	if (!device) return;
+
+	// Look up or create a cached texture for this VkImage
+	MGG_Texture* texture = nullptr;
+	auto it = g_xrTextureCache.find(image);
+	if (it != g_xrTextureCache.end())
+	{
+		texture = it->second;
+	}
+	else
+	{
+		// Create a new texture wrapper for the OpenXR-provided VkImage
+		VkImageCreateInfo imageInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+		imageInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageInfo.format = format;
+		imageInfo.extent = { (uint32_t)width, (uint32_t)height, 1 };
+		imageInfo.mipLevels = 1;
+		imageInfo.arrayLayers = 1;
+		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		imageInfo.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		texture = new MGG_Texture;
+		memset(texture, 0, sizeof(MGG_Texture));
+		texture->info = imageInfo;
+		texture->image = image;
+		texture->isSwapchain = true;
+		texture->isTarget = true;
+		texture->target_view = CreateImageView(device, texture, 1);
+
+		if (device->depthFormat != VK_FORMAT_UNDEFINED)
+		{
+			texture->depthTexture = CreateDepthTexture(device, device->depthFormat, width, height, texture->multiSampleCount);
+			texture->depthTexture->target_view = CreateImageView(device, texture->depthTexture, 1);
+		}
+
+		g_xrTextureCache[image] = texture;
+	}
+
+	// Set as the active render target
+	device->targets.targets[0] = texture;
+	memset(device->targets.targets + 1, 0, sizeof(MGG_Texture*) * (MGVK_NUM_TARGETS - 1));
+	device->targets.numTargets = 1;
+	for (int i = 0; i < MGVK_NUM_TARGETS; i++)
+		device->targets.arraySlices[i] = std::nullopt;
+	device->renderTargetDirty = true;
+	MGG_LOGI("[SetXRImage] image=%p, tex=%p, frame=%lld, dirty=1\n", (void*)image, (void*)texture, (long long)device->frame);
+}
+
+// Returns opaque graphics device handles for OpenXR session creation.
+// Fills the MGXR_DeviceHandles struct with Vulkan-specific handles.
+extern "C" void MGG_GraphicsDevice_GetDeviceHandles(void* devicePtr, void* outHandles)
+{
+	auto* device = (MGG_GraphicsDevice*)devicePtr;
+	if (!device || !outHandles) return;
+
+	// Layout: handle0=VkInstance, handle1=VkPhysicalDevice, handle2=VkDevice, handle3=queueFamilyIndex, handle4=queueIndex
+	auto* h = (void**)outHandles;
+	h[0] = device->instance;
+	h[1] = device->physicalDevice;
+	h[2] = device->device;
+	// handle3/handle4 are uint32_t stored after 3 pointers
+	auto* uints = (uint32_t*)&h[3];
+	uints[0] = device->queueFamilyIndex;
+	uints[1] = 0;
+}
+#endif
+
 mgint MGG_GraphicsDevice_BeginFrame(MGG_GraphicsDevice* device)
 {
 	assert(device != nullptr);
 
+#if defined(MG_OPENXR)
+	// In OpenXR mode, there is no VkSwapchainKHR — swapchain images
+	// are managed by the OpenXR runtime via MGXR_Swapchain.
+	// We still need to manage frame state (command buffers, fences, etc.)
+#else
 	// If the swapchain is null, it probably means that the window is minimized and we must attempt to check if it has been restored.
 	if (device->swapchain == VK_NULL_HANDLE)
 	{
 		printf("Swapchain was null before acquiring a frame. This shouldn't happen.\n");
 		MGVK_RecreateSwapChain(device);
 	}
+#endif
 
 	VkResult res;
 
@@ -2086,6 +2391,7 @@ mgint MGG_GraphicsDevice_BeginFrame(MGG_GraphicsDevice* device)
 	res = vkWaitForFences(device->device, 1, &swap->completedFence, VK_TRUE, UINT64_MAX);
 	VK_CHECK_RESULT(res);
 
+#if !defined(MG_OPENXR)
 	if (device->swapchain != VK_NULL_HANDLE)
 	{
 		device->swapchain_image_index = 0;
@@ -2095,6 +2401,7 @@ mgint MGG_GraphicsDevice_BeginFrame(MGG_GraphicsDevice* device)
 
 		swap = device->swapchains + device->swapchain_image_index;
 	}
+#endif
 
 	res = vkResetFences(device->device, 1, &swap->completedFence);
 	VK_CHECK_RESULT(res);
@@ -2131,6 +2438,17 @@ void MGG_GraphicsDevice_Clear(MGG_GraphicsDevice* device, MGClearOptions options
 	auto& swap = device->swapchains[device->swapchain_image_index];
 	assert(swap.is_recording);
 
+#if defined(MG_OPENXR)
+	// In OpenXR mode, skip Clear if no render target has been set yet
+	// (BeginEye hasn't been called). XR targets are set via SetXRSwapchainImage
+	// into device->targets, not swap.texture (which is always nullptr in XR mode).
+	if (device->targets.targets[0] == nullptr)
+	{
+		MGG_LOGI("[MGG_Clear] skipping - no XR target set yet (frame=%lld)\n", (long long)device->frame);
+		return;
+	}
+#endif
+
 	MGVK_UpdateRenderPass(device, device->frame, swap.commandBuffer);
 
 	int num_attachments = 0;
@@ -2139,6 +2457,15 @@ void MGG_GraphicsDevice_Clear(MGG_GraphicsDevice* device, MGClearOptions options
 	memset(attachments, 0, sizeof(attachments));
 
 	auto targets = device->pipelineState.targets;
+	if (!targets)
+	{
+		MGG_LOGI("[MGG_Clear] skipping - pipelineState.targets is NULL (frame=%lld)\n", (long long)device->frame);
+		return;
+	}
+
+	MGG_LOGI("[MGG_Clear] frame=%lld, targets=%p, numTargets=%d, w=%d, h=%d, cmd=%p, inRenderPass=%d\n",
+		(long long)device->frame, (void*)targets, targets->set.numTargets,
+		targets->width, targets->height, (void*)swap.commandBuffer, device->inRenderPass);
 
 	if (((int)options & (int)MGClearOptions::Target) != 0)
 	{
@@ -2370,9 +2697,16 @@ void MGG_GraphicsDevice_Present(MGG_GraphicsDevice* device, mgint currentFrame, 
 
 	VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+#if defined(MG_OPENXR)
+	// In OpenXR mode, no semaphore wait for image acquisition (OpenXR manages this)
+	submitInfo.waitSemaphoreCount = 0;
+	submitInfo.pWaitSemaphores = nullptr;
+	submitInfo.pWaitDstStageMask = nullptr;
+#else
 	submitInfo.waitSemaphoreCount = 1;
 	submitInfo.pWaitSemaphores = &device->imageAcquiredSemaphore;
 	submitInfo.pWaitDstStageMask = &wait_dst_stage_mask;
+#endif
 	submitInfo.commandBufferCount = 1;
 	submitInfo.pCommandBuffers = &swap.commandBuffer;
 	submitInfo.signalSemaphoreCount = 1;
@@ -2381,6 +2715,12 @@ void MGG_GraphicsDevice_Present(MGG_GraphicsDevice* device, mgint currentFrame, 
 	res = vkQueueSubmit(device->queue, 1, &submitInfo, swap.completedFence);
 	VK_CHECK_RESULT(res);
 
+#if defined(MG_OPENXR)
+	// In OpenXR mode, presentation is handled by xrEndFrame in MGXR_Session_EndFrame.
+	// We wait for the render to complete here to ensure the GPU work is done
+	// before the OpenXR compositor reads the swapchain images.
+	vkQueueWaitIdle(device->queue);
+#else
 	VkPresentInfoKHR presentInfo = { VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
 	presentInfo.waitSemaphoreCount = 1;
 	presentInfo.pWaitSemaphores = &swap.renderCompleteSemaphore;
@@ -2402,6 +2742,7 @@ void MGG_GraphicsDevice_Present(MGG_GraphicsDevice* device, mgint currentFrame, 
 	{
 		VK_CHECK_RESULT(res);
 	}
+#endif
 
 	++device->frame;
 
@@ -2521,9 +2862,25 @@ void MGG_GraphicsDevice_SetRenderTargets(MGG_GraphicsDevice* device, MGG_Texture
 
 	if (targets == nullptr || count == 0)
 	{
+#if defined(MG_OPENXR)
+		// In OpenXR mode, swap.texture is always nullptr — XR targets are set
+		// by SetXRSwapchainImage into device->targets. Preserve them.
+		if (device->targets.targets[0] != nullptr)
+		{
+			memset(device->targets.targets + 1, 0, sizeof(MGG_Texture*) * (MGVK_NUM_TARGETS - 1));
+			return;
+		}
+		// No XR target set yet — clear everything.
+		memset(device->targets.targets, 0, sizeof(MGG_Texture*) * MGVK_NUM_TARGETS);
+		device->targets.numTargets = 0;
+		device->renderTargetDirty = true;
+		return;
+#else
 		device->targets.targets[0] = swap.texture;
 
 		memset(device->targets.targets + 1, 0, sizeof(MGG_Texture*) * (MGVK_NUM_TARGETS - 1));
+#endif
+
 		device->targets.numTargets = 1;
         for (int i = 0; i < MGVK_NUM_TARGETS; i++)
         {
@@ -2848,7 +3205,13 @@ static void MGVK_UpdateRenderPass(MGG_GraphicsDevice* device, FrameCounter curre
     const int MAX_ATTACHMENTS = 6;
 
 	if (!device->renderTargetDirty)
+	{
+#if defined(MG_OPENXR)
+		if (!device->inRenderPass)
+			MGG_LOGI("[MGG_UpdateRP] renderTargetDirty=false but inRenderPass=false! frame=%lld\n", (long long)currentFrame);
+#endif
 		return;
+	}
 
 	MGVK_EndRenderPass(device, commandBuffer);
 
