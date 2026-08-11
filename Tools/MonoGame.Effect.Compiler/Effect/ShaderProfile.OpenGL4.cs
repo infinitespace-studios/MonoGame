@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Xna.Framework.Graphics;
 using MonoGame.Tool;
 using MonoGame.Effect.Compiler.Effect.Spirv;
+using System.Globalization;
 
 namespace MonoGame.Effect
 {
@@ -102,13 +103,13 @@ namespace MonoGame.Effect
             if (!string.IsNullOrEmpty(pass.vsFunction))
             {
                 if (pass.vsModel != "vs_6_0")
-                    throw new Exception(String.Format("Invalid OpenGL 4.x vertex profile '{0}'! Requires vs_6_0.", pass.vsModel));
+                    throw new Exception($"Invalid OpenGL 4.x vertex profile '{pass.vsModel}'! Requires vs_6_0.");
             }
 
             if (!string.IsNullOrEmpty(pass.psFunction))
             {
                 if (pass.psModel != "ps_6_0")
-                    throw new Exception(String.Format("Invalid OpenGL 4.x pixel profile '{0}'! Requires ps_6_0.", pass.psModel));
+                    throw new Exception($"Invalid OpenGL 4.x pixel profile '{pass.psModel}'! Requires ps_6_0.");
             }
         }
 
@@ -116,7 +117,7 @@ namespace MonoGame.Effect
         {
             const int SlotOffset = 32;
 
-            var outputPath = Path.GetDirectoryName(shaderResult.OutputFilePath);
+            var outputPath = Path.GetDirectoryName(shaderResult.OutputFilePath) ?? "";
             var sourceFileName = Path.GetFileNameWithoutExtension(shaderResult.FilePath) + "." + shaderFunction;
 
             // TODO: We have no intermediate folder in 2MGFX for temp stuff
@@ -219,7 +220,7 @@ namespace MonoGame.Effect
                 //      but if the return code was not success=0 then treat stdout as stderr
                 if (toolResult != 0)
                 {
-                    errorsAndWarnings += string.Format("DXC.exe returned error code '{0}'.\n", toolResult);
+                    errorsAndWarnings += $"DXC.exe returned error code '{toolResult}'.\n";
                     errorsAndWarnings += stdout;
                     throw new ShaderCompilerException();
                 }
@@ -305,7 +306,12 @@ namespace MonoGame.Effect
                             throw new ShaderCompilerException();
                         }
 
-                        SpirvTypeStruct constantBuffer = variable.Pointer.PointerType as SpirvTypeStruct;
+                        if (variable.Pointer.PointerType is not SpirvTypeStruct constantBuffer)
+                        {
+                            errorsAndWarnings += $"Type for {variable.Pointer.Name ?? variable.Pointer.Id} was `Struct` but PointerType was not `SpirvTypeStruct`.";
+                            throw new ShaderCompilerException();
+                        }
+
                         ConstantBufferData cbuffer = IsGLES
                             ? ConstantBufferData.BuildFromSpirvStructStd140(constantBuffer)
                             : ConstantBufferData.BuildFromSpirvStruct(constantBuffer);
@@ -338,33 +344,33 @@ namespace MonoGame.Effect
                             var samplerVariable = sampledImage.LoadedSampler.Variable;
                             var imageVariable = sampledImage.LoadedImage.Variable;
 
-                            var samplerType = samplerVariable.Pointer.PointerType as SpirvTypeSampler;
-                            var imageType = imageVariable.Pointer.PointerType as SpirvTypeImage;
+                            var samplerType = (SpirvTypeSampler)samplerVariable.Pointer.PointerType;
+                            var imageType = (SpirvTypeImage)imageVariable.Pointer.PointerType;
 
                             // DXC only applies -fvk-t-shift/-fvk-s-shift to resources
                             // with explicit register() assignments.  Resources without
                             // explicit registers get sequentially-assigned bindings that
                             // are *not* shifted, so we must detect that and use the
                             // binding value directly as the slot.
-                            int rawSamplerSlot = (int)samplerVariable.BindingSlot.Value;
-                            int rawTextureSlot = (int)imageVariable.BindingSlot.Value;
+                            int rawSamplerSlot = (int)(samplerVariable.BindingSlot ?? 0);
+                            int rawTextureSlot = (int)(imageVariable?.BindingSlot ?? 0);
 
                             var sampler = new ShaderData.Sampler
                             {
                                 samplerSlot = rawSamplerSlot >= SlotOffset ? rawSamplerSlot - SlotOffset : rawSamplerSlot,
-                                samplerName = samplerVariable.Name,
+                                samplerName = samplerVariable.Name ?? samplerVariable.Id,
                                 textureSlot = rawTextureSlot >= SlotOffset ? rawTextureSlot - SlotOffset : rawTextureSlot,
                             };
 
                             // This image is only sampled by one sampler, we can safely use the texture name for the parameter.
                             if (sampledImages.Count() == 1)
                             {
-                                sampler.parameterName = imageVariable.Name;
+                                sampler.parameterName = imageVariable!.Name ?? imageVariable.Id;
                             }
                             // otherwise make a composite name for this image/sampler combo.
                             else
                             {
-                                sampler.parameterName = $"{samplerVariable.Name}+{imageVariable.Name}";
+                                sampler.parameterName = $"{samplerVariable.Name ?? imageVariable!.Id}+{imageVariable!.Name ?? imageVariable.Id}";
                             }
 
                             switch (imageType.Dimensionality)
@@ -383,7 +389,7 @@ namespace MonoGame.Effect
                                     break;
                             }
 
-                            if (!shaderResult.ShaderInfo.SamplerStates.TryGetValue(samplerVariable.Name, out SamplerStateInfo samplerStateInfo))
+                            if (!shaderResult.ShaderInfo.SamplerStates.TryGetValue(samplerVariable.Name ?? samplerVariable.Id, out SamplerStateInfo? samplerStateInfo))
                             {
                                 errorsAndWarnings += $"Could not find sampler state info for sampler '{samplerVariable.Name}'; using defaults\n";
                                 samplerStateInfo = new SamplerStateInfo();
@@ -414,13 +420,13 @@ namespace MonoGame.Effect
 
                         var m = Regex.Match(semanticId, @"(\D+)(\d+)?");
                         if (m.Groups[2].Success)
-                            a.index = int.Parse(m.Groups[2].Value);
+                            a.index = int.Parse(m.Groups[2].Value, CultureInfo.InvariantCulture);
                         else
                             a.index = 0;
 
                         if (m.Groups[1].Success)
                         {
-                            switch (m.Groups[1].Value.ToUpper())
+                            switch (m.Groups[1].Value.ToUpper(CultureInfo.InvariantCulture))
                             {
                                 default:
                                     a.usage = VertexElementUsage.TextureCoordinate;

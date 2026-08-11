@@ -85,10 +85,10 @@ namespace MonoGame.Effect
         /// </summary>
         public static ConstantBufferData BuildFromSpirvStructStd140(SpirvTypeStruct svStruct)
         {
-            var cbuffer = new ConstantBufferData(svStruct.Name);
+            var cbuffer = new ConstantBufferData(svStruct.Name ?? svStruct.Id);
 
             // Process members in their declaration order (by SPIR-V offset).
-            var byOffset = svStruct.Members.OrderBy(m => m.Offset.Value);
+            var byOffset = svStruct.Members.OrderBy(m => m.Offset);
 
             uint currentOffset = 0;
 

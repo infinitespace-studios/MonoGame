@@ -1185,7 +1185,16 @@ void MGG_GraphicsDevice_GetCaps(MGG_GraphicsDevice* device, MGG_GraphicsDevice_C
            caps.MaxTextureSlots, caps.MaxVertexBufferSlots, caps.MaxVertexTextureSlots);
 }
 
-void MGG_GraphicsDevice_ResizeSwapchain(MGG_GraphicsDevice* device, void* nativeWindowHandle, mgint width, mgint height, MGSurfaceFormat color, MGDepthFormat depth, mgint syncInterval) {
+void MGG_GraphicsDevice_ResizeSwapchain(
+	MGG_GraphicsDevice* device,
+	void* nativeWindowHandle,
+	mgint width,
+	mgint height,
+	MGSurfaceFormat color,
+	MGDepthFormat depth,
+	mgint multiSampleCount,
+	mgint syncInterval)
+{
     if (!device) return;
     printf("Resizing OpenGL graphics device (width=%d, height=%d)\n", width, height);
 
@@ -2688,7 +2697,7 @@ void MGG_SamplerState_Destroy(MGG_GraphicsDevice* device, MGG_SamplerState* stat
     delete state;
 }
 
-MGG_Buffer* MGG_Buffer_Create(MGG_GraphicsDevice* device, MGBufferType type, mgint sizeInBytes) {
+MGG_Buffer* MGG_Buffer_Create(MGG_GraphicsDevice* device, MGBufferType type, mgbool dynamic, mgint sizeInBytes) {
     assert(device != nullptr);
     assert(sizeInBytes > 0);
     if (!device || sizeInBytes <= 0) return nullptr;
