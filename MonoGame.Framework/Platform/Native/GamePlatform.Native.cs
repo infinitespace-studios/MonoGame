@@ -42,7 +42,39 @@ class NativeGamePlatform : GamePlatform
     [ObjCRuntime.MonoPInvokeCallback(typeof(em_callback_func))]
     private static unsafe void RunEmscriptenMainLoop()
     {
-        _nativeGamePlatform.RunOneLoop();
+        if (_nativeGamePlatform == null)
+            return;
+
+        var gamePlatform = _nativeGamePlatform;
+
+        gamePlatform.RunOneLoop();
+
+        if (!ReferenceEquals(_nativeGamePlatform, gamePlatform))
+        {
+            return;
+        }
+
+        if (gamePlatform._isExiting > 0 && gamePlatform.ShouldExit())
+        {
+            EndEmscriptenMainLoop(gamePlatform);
+        }
+        else
+        {
+            gamePlatform._isExiting = 0;
+        }
+    }
+
+    private static unsafe void EndEmscriptenMainLoop(NativeGamePlatform targetGamePlatform)
+    {
+        if (!ReferenceEquals(_nativeGamePlatform, targetGamePlatform))
+        {
+            return;
+        }
+        var gamePlatform = targetGamePlatform;
+        gamePlatform._isExiting = 0;
+        _nativeGamePlatform = null;
+        emscripten_cancel_main_loop();
+        gamePlatform.RaiseAsyncRunLoopEnded();
     }
 
 
@@ -373,6 +405,11 @@ class NativeGamePlatform : GamePlatform
 
     protected unsafe override void Dispose(bool disposing)
     {
+        if (PlatformInfo.MonoGamePlatform == MonoGamePlatform.WebGL && _nativeGamePlatform != null)
+        {
+            EndEmscriptenMainLoop(this);
+        }
+
         if (_window != null)
         {
             _window.Destroy();
