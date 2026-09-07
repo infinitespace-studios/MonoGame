@@ -42,6 +42,7 @@ function common(project_name)
     pic "On"
     filter {}
     if os.target() == "emscripten" then
+        platform_target_path = "../../Artifacts/native/mgruntime/" .. project_name .. "/%{cfg.system}/%{cfg.buildcfg}"
         kind "StaticLib"
         targetprefix "" -- remove lib prefix
         defines {"MINIMP3_NO_SIMD"}
