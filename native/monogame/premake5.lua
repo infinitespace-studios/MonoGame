@@ -29,8 +29,10 @@ function common(project_name)
         platform_target_path = "../../Artifacts/native/mgruntime/" .. project_name .. "/%{cfg.system}/%{cfg.platform}/%{cfg.buildcfg}"
     else
         local target_arch = _OPTIONS["arch"] or "x64"
-        architecture(target_arch == "arm64" and "ARM64" or "x64")
-        if os.target() == "macosx" then
+        if os.target() ~= "emscripten" then   
+            architecture(target_arch == "arm64" and "ARM64" or "x64")
+        end
+        if os.target() == "macosx" or os.target() == "emscripten" then
             platform_target_path = "../../Artifacts/native/mgruntime/" .. project_name .. "/%{cfg.system}/%{cfg.buildcfg}"
         else
             platform_target_path = "../../Artifacts/native/mgruntime/" .. project_name .. "/%{cfg.system}/" .. target_arch .. "/%{cfg.buildcfg}"
@@ -42,7 +44,6 @@ function common(project_name)
     pic "On"
     filter {}
     if os.target() == "emscripten" then
-        platform_target_path = "../../Artifacts/native/mgruntime/" .. project_name .. "/%{cfg.system}/%{cfg.buildcfg}"
         kind "StaticLib"
         targetprefix "" -- remove lib prefix
         defines {"MINIMP3_NO_SIMD"}
