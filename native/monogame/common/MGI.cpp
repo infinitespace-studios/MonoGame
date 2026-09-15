@@ -5,6 +5,7 @@
 #include "api_MGI.h"
 
 #include <type_traits>
+#include <vector> 
 
 #if defined(_WIN32)
 #define __STDC_LIB_EXT1__
@@ -22,6 +23,23 @@ inline constexpr bool operator&(MGProcessorType Lhs, MGProcessorType Rhs)
                                         static_cast<std::underlying_type_t<MGProcessorType>>(Rhs));
 }
 
+#if defined(__EMSCRIPTEN__)
+static void FlipRgbaRows(mgbyte* image, int width, int height)                                        
+{                                                                                                     
+	const size_t rowBytes = static_cast<size_t>(width) * 4;                                           
+	std::vector<mgbyte> row(rowBytes);                                                                
+																										
+	for (int y = 0; y < height / 2; ++y)                                                              
+	{                                                                                                 
+		auto* top = image + static_cast<size_t>(y) * rowBytes;                                        
+		auto* bottom = image + static_cast<size_t>(height - 1 - y) * rowBytes;                        
+																										
+		memcpy(row.data(), top, rowBytes);                                                            
+		memcpy(top, bottom, rowBytes);                                                                
+		memcpy(bottom, row.data(), rowBytes);                                                         
+	}                                                                                                 
+} 
+#endif
 
 void MGI_ReadRGBA(mgbyte* data, mgint dataBytes, MGProcessorType processors, mgint& width, mgint& height, mgbyte*& rgba)
 {
@@ -33,10 +51,14 @@ void MGI_ReadRGBA(mgbyte* data, mgint dataBytes, MGProcessorType processors, mgi
 	auto image = stbi_load_from_memory(data, dataBytes, &w, &h, &c, 4);
 	if (image == nullptr)
 	{
-		width = 0;
+		width = 0;//
 		height = 0;
 		return;
 	}
+
+#if defined(__EMSCRIPTEN__)                                                                           
+   	FlipRgbaRows(image, w, h);                                                                            
+#endif
 
 	// If the original image before conversion had alpha...
     if ((processors & MGProcessorType::ZeroTransparentPixels) && c == 4)
