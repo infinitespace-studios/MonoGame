@@ -31,3 +31,9 @@
 [submodule "native/monogame/external/faudio"]
 	path = native/monogame/external/faudio
 	url = https://github.com/FNA-XNA/FAudio.git
+[submodule "native/monogame/external/dav1d"]
+	path = native/monogame/external/dav1d
+	url = https://github.com/videolan/dav1d.git
+[submodule "native/monogame/external/nestegg"]
+	path = native/monogame/external/nestegg
+	url = https://github.com/mozilla/nestegg.git
