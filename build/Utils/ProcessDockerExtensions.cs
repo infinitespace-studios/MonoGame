@@ -27,7 +27,7 @@ public static class ProcessDockerExtensions
         return false;
     }
 
-    public static int StartProcessWithDocker(this BuildContext context,  string command, string workingDirectory, ProcessArgumentBuilder args, string volumeMount = "")
+    public static int StartProcessWithDocker(this BuildContext context,  string command, string workingDirectory, ProcessArgumentBuilder args, string volumeMount = "", Dictionary<string, string>? environmentVariables = default)
     {
         var useDocker = UseDocker(context);
         if (useDocker)
@@ -50,6 +50,7 @@ public static class ProcessDockerExtensions
             Arguments = args,
             WorkingDirectory = workingDirectory,
             NoWorkingDirectory = useDocker,
+            EnvironmentVariables = environmentVariables ?? new Dictionary<string, string>()
         };
         return context.StartProcess(command, settings);
     }
