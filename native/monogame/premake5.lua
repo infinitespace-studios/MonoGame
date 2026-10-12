@@ -116,6 +116,20 @@ function directx12()
     filter {}
 end
 
+function video()
+    defines {"MG_VIDEO"}
+
+    includedirs {"external/dav1d/include", "external/nestegg/include"}
+
+    filter {"system:macosx"}
+    libdirs {"external/dav1d/build", "external/nestegg/build"}
+    linkoptions {
+        "-Wl,external/dav1d/build/libdav1d.a",
+        "-Wl,external/nestegg/build/libnestegg.a",
+        "-Wl,-ld_classic"
+    }
+end
+
 -- FAudio is supported for all desktop platforms.
 function faudio()
     defines {"MG_FAUDIO"}
@@ -180,6 +194,7 @@ common("desktopvk")
 sdl2()
 vulkan()
 faudio()
+video()
 configs()
 
 project "desktopgl4"
@@ -187,6 +202,7 @@ common("desktopgl4")
 sdl2()
 opengl()
 faudio()
+video()
 configs()
 
 if os.target() == "windows" then
@@ -195,5 +211,6 @@ if os.target() == "windows" then
     sdl2()
     directx12()
     xaudio()
+    video()
     configs()
 end
