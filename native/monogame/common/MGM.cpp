@@ -28,6 +28,12 @@ struct MGG_Texture;
 #define MINIMP3_IMPLEMENTATION
 #include "minimp3_ex.h"
 
+//#ifdef MG_VIDEO
+#include "dav1d/dav1d.h"
+#include "nestegg/nestegg.h"
+#include <api_MG_Asset.h>
+//#endif
+
 
 void MGM_ReadSignature(const char* filepath, uint8_t* signature)
 {
@@ -310,6 +316,57 @@ struct MGM_Song
 	std::queue<MGM_SongEvent> events;
 };
 
+struct MGM_Video
+{
+	MG_Asset* assetHandle = nullptr;
+	mglong assetLength = 0;
+	nestegg* container = nullptr;
+	const char* filepath = nullptr;
+	MGM_VideoDecoder* videoDecoder = nullptr;
+	MGM_AudioDecoder* audioDecoder = nullptr;
+	mgbool looped = false;
+	mgulong duration = 0;
+	MGM_AudioDecoderInfo audioInfo;
+	MGM_VideoDecoderInfo videoInfo;
+	std::thread decoderThread;
+};
+
+struct MGM_VideoDecoder_Dav1d : MGM_VideoDecoder
+{
+	virtual ~MGM_VideoDecoder_Dav1d() {}
+	virtual void Initialize(const char* filepath, MGM_VideoInfo& info);
+	virtual MGM_AudioDecoder* GetAudioDecoder(MGM_AudioDecoderInfo& info);
+	virtual mgulong GetPosition();
+	virtual void SetLooped(mgbool looped);
+	virtual MGG_Texture* Decode();
+};
+
+void MGM_VideoDecoder_Dav1d::Initialize(const char* filepath, MGM_VideoInfo& info)
+{
+
+}
+
+void MGM_VideoDecoder_Dav1d::SetLooped(mgbool looped)
+{
+
+}
+
+mgulong MGM_VideoDecoder_Dav1d::GetPosition()
+{
+	return 0;
+}
+
+MGM_AudioDecoder* MGM_VideoDecoder_Dav1d::GetAudioDecoder(MGM_AudioDecoderInfo& info)
+{
+	return nullptr;
+}
+
+MGG_Texture* MGM_VideoDecoder_Dav1d::Decode()
+{
+	return nullptr;
+}
+
+
 static void MGM_Song_EnqueueEvent(MGM_Song* song, MGSongEventType type, mgulong generation)
 {
 	std::lock_guard<std::mutex> lock(song->eventsMutex);
@@ -511,7 +568,12 @@ MGM_VideoDecoder* MGM_VideoDecoder_TryCreate_OpenH264(const uint8_t* signature)
 	return nullptr;
 }
 
-MGM_VideoDecoder* MGM_VideoDecoder_Create(MGG_GraphicsDevice* device, const char* filepath, MGM_VideoDecoderInfo& info)
+MGM_VideoDecoder* MGM_VideoDecoder_TryCreate_Dav1d(const uint8_t* signature)
+{
+	return new MGM_VideoDecoder_Dav1d();
+}
+
+MGM_VideoDecoder* MGM_VideoDecoder_Create(MGG_GraphicsDevice* device, const char* filepath, MGM_VideoInfo& info)
 {
 	assert(filepath != nullptr);
 
@@ -520,6 +582,7 @@ MGM_VideoDecoder* MGM_VideoDecoder_Create(MGG_GraphicsDevice* device, const char
 
 	// Try the common decoders.
 	MGM_VideoDecoder* decoder = nullptr;
+	decoder = decoder ? decoder : MGM_VideoDecoder_TryCreate_Dav1d(signature);
 	decoder = decoder ? decoder : MGM_VideoDecoder_TryCreate_Theora(signature);
 	decoder = decoder ? decoder : MGM_VideoDecoder_TryCreate_OpenH264(signature);
 
@@ -566,3 +629,107 @@ MGG_Texture* MGM_VideoDecoder_Decode(MGM_VideoDecoder* decoder)
 	return decoder->Decode();
 }
 
+static int64_t
+nestegg_io_read(void * p, size_t length, void * asset)
+{
+	assert(asset != nullptr);
+	MG_Asset* handle = (MG_Asset*)asset;
+	return MG_Asset_Read(handle, (mgbyte*)p, length);
+}
+
+static int
+nestegg_io_seek(int64_t offset, int whence, void * asset)
+{
+	assert(asset != nullptr);
+	MG_Asset* handle = (MG_Asset*)asset;
+	return MG_Asset_Seek(handle, offset, whence);
+}
+
+static int64_t
+nestegg_io_tell(void * asset)
+{
+	assert(asset != nullptr);
+	MG_Asset* handle = (MG_Asset*)asset;
+	return MG_Asset_Tell(handle);
+}
+
+// Decodes the video and audio stream in a separate thread.
+static void MGM_Video_DecodeStream(MGM_Video* video, mgulong generation)
+{
+	assert(video != nullptr);
+	video->assetHandle = nullptr;
+	if (!MG_Asset_Open(video->filepath, video->assetHandle, video->assetLength))
+	{
+		MG_Asset_Close(video->assetHandle);
+		return;
+	}
+	nestegg_io io = {
+		nestegg_io_read,
+		nestegg_io_seek,
+		nestegg_io_tell,
+		video->assetHandle
+		};
+	nestegg_init(&video->container, io, nullptr, -1);
+	while (true)
+	{
+		nestegg_packet * pkt;
+		if (nestegg_read_packet(video->container, &pkt) != 0)
+		{
+			break;
+		}
+	}
+	nestegg_destroy(video->container);
+	MG_Asset_Close(video->assetHandle);
+}
+
+MGM_Video* MGM_Video_Create(MGG_GraphicsDevice* device, const char* filepath, MGM_VideoInfo& info)
+{
+	MGM_Video* video = new MGM_Video();
+	video->filepath = filepath;
+	video->videoDecoder = MGM_VideoDecoder_Create(device, filepath, info);
+	video->audioDecoder = MGM_VideoDecoder_GetAudioDecoder(video->videoDecoder, video->audioInfo);
+	return video;
+}
+void MGM_Video_Destroy(MGM_Video* video)
+{
+	assert(video != nullptr);
+	delete video;
+}
+mgbyte MGM_Video_Play(MGM_Video* video)
+{
+	assert(video != nullptr);
+	video->decoderThread = std::thread(MGM_Video_DecodeStream, video, 0);
+	return 0;
+}
+
+void MGM_Video_Pause(MGM_Video* video)
+{
+	assert(video != nullptr);
+}
+void MGM_Video_Resume(MGM_Video* video)
+{
+	assert(video != nullptr);
+}
+void MGM_Video_Stop(MGM_Video* video)
+{
+	assert(video != nullptr);
+}
+mgulong MGM_Video_GetPosition(MGM_Video* video)
+{
+	assert(video != nullptr);
+	return MGM_VideoDecoder_GetPosition(video->videoDecoder);
+}
+mgint MGM_Video_GetState(MGM_Video* video)
+{
+	assert(video != nullptr);
+	return 0;
+}
+void MGM_Video_SetLooped(MGM_Video* video, mgbyte looped)
+{
+	assert(video != nullptr);
+}
+MGG_Texture* MGM_Video_GetTexture(MGM_Video* video)
+{
+	assert(video != nullptr);
+	return nullptr;
+}

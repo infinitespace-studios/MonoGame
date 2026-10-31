@@ -15,4 +15,5 @@ struct MG_Asset;
 MG_EXPORT mgbool MG_Asset_Open (const char* path, MG_Asset*& handle, mglong& length);
 MG_EXPORT mgint MG_Asset_Read (MG_Asset* handle,  mgbyte* buffer, mglong count);
 MG_EXPORT mglong MG_Asset_Seek (MG_Asset* handle, mglong offset, mgint whence);
+MG_EXPORT mglong MG_Asset_Tell (MG_Asset* handle);
 MG_EXPORT void MG_Asset_Close (MG_Asset* handle);

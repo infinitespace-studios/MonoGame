@@ -1,7 +1,7 @@
 // MonoGame - Copyright (C) MonoGame Foundation, Inc
 // This file is subject to the terms and conditions defined in
 // file 'LICENSE.txt', which is part of this source code package.
-
+                
 // This code is auto generated, don't modify it by hand.
 // To regenerate it run: Tools/MonoGame.Generator.CTypes
 
@@ -71,6 +71,7 @@ MG_EXPORT void MGG_Buffer_SetData(MGG_GraphicsDevice* device, MGG_Buffer*& buffe
 MG_EXPORT void MGG_Buffer_GetData(MGG_GraphicsDevice* device, MGG_Buffer* buffer, mgint offset, mgbyte* data, mgint dataCount, mgint dataBytes, mgint dataStride);
 MG_EXPORT MGG_Texture* MGG_Texture_Create(MGG_GraphicsDevice* device, MGTextureType type, MGSurfaceFormat format, mgint width, mgint height, mgint depth, mgint mipmaps, mgint slices);
 MG_EXPORT MGG_Texture* MGG_RenderTarget_Create(MGG_GraphicsDevice* device, MGTextureType type, MGSurfaceFormat format, mgint width, mgint height, mgint depth, mgint mipmaps, mgint slices, MGDepthFormat depthFormat, mgint multiSampleCount, MGRenderTargetUsage usage);
+MG_EXPORT MGG_Texture* MGG_RenderTarget_WrapNativeHandle(MGG_GraphicsDevice* device, void* nativeHandle, MGSurfaceFormat format, mgint width, mgint height, MGDepthFormat depthFormat, mgint multiSampleCount, mgbyte externalPresentation);
 MG_EXPORT void MGG_Texture_Destroy(MGG_GraphicsDevice* device, MGG_Texture* texture);
 MG_EXPORT void MGG_Texture_SetData(MGG_GraphicsDevice* device, MGG_Texture* texture, mgint level, mgint slice, mgint x, mgint y, mgint z, mgint width, mgint height, mgint depth, mgbyte* data, mgint dataBytes);
 MG_EXPORT void MGG_Texture_GetData(MGG_GraphicsDevice* device, MGG_Texture* texture, mgint level, mgint slice, mgint x, mgint y, mgint z, mgint width, mgint height, mgint depth, mgbyte* data, mgint dataBytes);
@@ -83,5 +84,4 @@ MG_EXPORT void MGG_OcclusionQuery_Destroy(MGG_GraphicsDevice* device, MGG_Occlus
 MG_EXPORT void MGG_OcclusionQuery_Begin(MGG_GraphicsDevice* device, MGG_OcclusionQuery* query);
 MG_EXPORT void MGG_OcclusionQuery_End(MGG_GraphicsDevice* device, MGG_OcclusionQuery* query);
 MG_EXPORT mgbyte MGG_OcclusionQuery_GetResult(MGG_GraphicsDevice* device, MGG_OcclusionQuery* query, mgint& pixelCount);
-MG_EXPORT MGG_Texture* MGG_RenderTarget_WrapNativeHandle(MGG_GraphicsDevice* device, void* nativeHandle, MGSurfaceFormat format, mgint width, mgint height, MGDepthFormat depthFormat, mgint multiSampleCount, mgbyte externalPresentation);
-MG_EXPORT void MGG_GraphicsDevice_GetNativeHandles(const MGG_GraphicsDevice* device, MGP_NativeGraphicsHandles* handles);
+MG_EXPORT void MGG_GraphicsDevice_GetNativeHandles(MGG_GraphicsDevice* device, MGP_NativeGraphicsHandles& handles);

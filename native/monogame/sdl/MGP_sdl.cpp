@@ -808,15 +808,15 @@ static mgbyte MGP_Window_CreateNativeWindowInternal(
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, window->contextMinorVersion);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->redSize : 8);
-    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->greenSize : 8);
-    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->blueSize : 8);
-    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->alphaSize : 8);
-    SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, windowCreateInfo != nullptr ? windowCreateInfo->framebufferSrgbCapable : 0);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->depthSize : 24);
-    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->stencilSize : 8);
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, windowCreateInfo != nullptr ? windowCreateInfo->multiSampleBuffers : 0);
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, windowCreateInfo != nullptr ? windowCreateInfo->multiSampleSamples : 0);
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->RedSize : 8);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->GreenSize : 8);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->BlueSize : 8);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->AlphaSize : 8);
+    SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, windowCreateInfo != nullptr ? windowCreateInfo->FramebufferSrgbCapable : 0);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->DepthSize : 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, windowCreateInfo != nullptr ? windowCreateInfo->StencilSize : 8);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, windowCreateInfo != nullptr ? windowCreateInfo->MultiSampleBuffers : 0);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, windowCreateInfo != nullptr ? windowCreateInfo->MultiSampleSamples : 0);
     SDL_GL_SetAttribute(SDL_GL_ACCELERATED_VISUAL, 1);
 #if defined(__APPLE__)
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);

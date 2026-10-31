@@ -6118,14 +6118,14 @@ MGG_Texture* MGG_RenderTarget_WrapNativeHandle(
 	return texture;
 }
 
-MG_EXPORT void MGG_GraphicsDevice_GetNativeHandles(const MGG_GraphicsDevice* device, MGP_NativeGraphicsHandles* handles)
+void MGG_GraphicsDevice_GetNativeHandles(const MGG_GraphicsDevice* device, MGP_NativeGraphicsHandles* handles)
 {
 	if (!device || !handles)
 	{
 		return;
 	}
 
-	handles->Backend          = MGGraphicsBackend::Vulkan;
+	handles->Backend          = (mgint)MGGraphicsBackend::Vulkan;
 	handles->Instance         = device->instance;
 	handles->PhysicalDevice   = device->physicalDevice;
 	handles->LogicalDevice    = device->device;

@@ -26,13 +26,22 @@ struct MGM_AudioDecoder
 struct MGM_VideoDecoder
 {
 	virtual ~MGM_VideoDecoder() {}
-	virtual void Initialize(const char* filepath, MGM_VideoDecoderInfo& info) = 0;
+	virtual void Initialize(const char* filepath, MGM_VideoInfo& info) = 0;
 	virtual MGM_AudioDecoder* GetAudioDecoder(MGM_AudioDecoderInfo& info) = 0;
 	virtual mgulong GetPosition() = 0;
 	virtual void SetLooped(mgbool looped) = 0;
 	virtual MGG_Texture* Decode() = 0;
 };
 
+struct MGM_Dav1dDecoder : MGM_VideoDecoder
+{
+	virtual ~MGM_Dav1dDecoder() {}
+	virtual void Initialize(const char* filepath, MGM_VideoInfo& info) override = 0;
+	virtual MGM_AudioDecoder* GetAudioDecoder(MGM_AudioDecoderInfo& info) override = 0;
+	virtual mgulong GetPosition() override = 0;
+	virtual void SetLooped(mgbool looped) override = 0;
+	virtual MGG_Texture* Decode() override = 0;
+};
 
 
 /// <summary>
@@ -49,3 +58,4 @@ MGM_AudioDecoder* MGM_AudioDecoder_TryCreate_Mp3(const uint8_t* signature);
 
 MGM_VideoDecoder* MGM_VideoDecoder_TryCreate_Theora(const uint8_t* signature);
 MGM_VideoDecoder* MGM_VideoDecoder_TryCreate_OpenH264(const uint8_t* signature);
+MGM_VideoDecoder* MGM_VideoDecoder_TryCreate_Dav1d(const uint8_t* signature);

@@ -2489,14 +2489,14 @@ MGG_Texture* MGG_RenderTarget_WrapNativeHandle(
 	return texture;
 }
 
-MG_EXPORT void MGG_GraphicsDevice_GetNativeHandles(const MGG_GraphicsDevice* device, MGP_NativeGraphicsHandles* handles)
+void MGG_GraphicsDevice_GetNativeHandles(const MGG_GraphicsDevice* device, MGP_NativeGraphicsHandles* handles)
 {
 	if (!device || !handles)
 	{
 		return;
 	}
 
-	handles->Backend          = MGGraphicsBackend::DirectX12;
+	handles->Backend          = (mgint)MGGraphicsBackend::DirectX12;
 	handles->Instance         = nullptr;	// DX12 doesn't have an instance handle like Vulkan.
 	handles->PhysicalDevice   = device->resources->GetAdapter();
 	handles->LogicalDevice    = device->resources->GetD3DDevice();

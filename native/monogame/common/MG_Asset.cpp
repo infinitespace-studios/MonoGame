@@ -45,6 +45,11 @@ mgint MG_Asset_Read(MG_Asset* handle, mgbyte* buffer, mglong count)
     return fread(buffer, 1, count, handle->file);
 }
 
+mglong MG_Asset_Tell(MG_Asset* handle)
+{
+    return ftell(handle->file);
+}
+
 mglong MG_Asset_Seek(MG_Asset* handle, mglong offset, mgint whence)
 {
     int origin;

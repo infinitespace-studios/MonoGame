@@ -18,6 +18,9 @@ internal readonly struct MGM_VideoDecoder { }
 [MGHandle]
 internal readonly struct MGM_Song { }
 
+[MGHandle]
+internal readonly struct MGM_Video {}
+
 internal enum SongEventType
 {
     Completed,
@@ -54,7 +57,7 @@ struct MGM_AudioDecoderInfo
 }
 
 
-struct MGM_VideoDecoderInfo
+struct MGM_VideoInfo
 {
     /// <summary>
     /// The width of the video frames.
@@ -114,63 +117,37 @@ internal static unsafe partial class MGM
 
     #endregion
 
-    #region Audio Decoder
-
-    /// <summary>
-    /// This returns an audio decoder that returns a stream of PCM data from an audio file.
-    /// </summary>
-    /// <param name="filepath">The absolute file path to the audio file.</param>
-    /// <param name="info">Returns information about the opened audio file.</param>
-    /// <returns>Returns the audio decoder ready to read data or null if the format is unsupported.</returns>
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_AudioDecoder_Create", ExactSpelling = true, CallingConvention = CallingConvention.Cdecl)]
-    public static extern MGM_AudioDecoder* AudioDecoder_Create([MarshalAs(UnmanagedType.LPUTF8Str)] string filepath, out MGM_AudioDecoderInfo info);
-
-    /// <summary>
-    /// This releases all internal resources, closes the file, and destroys the audio decoder.
-    /// </summary>
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_AudioDecoder_Destroy", ExactSpelling = true)]
-    public static extern void AudioDecoder_Destroy(MGM_AudioDecoder* decoder);
-   
-    /// <summary>
-    /// Set the position of the audio decoder in milliseconds.
-    /// </summary>
-    /// <param name="decoder">The decoder.</param>
-    /// <param name="timeMS">The time in millseconds from the start of the audio file.</param>
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_AudioDecoder_SetPosition", ExactSpelling = true)]
-    public static extern void AudioDecoder_SetPosition(MGM_AudioDecoder* decoder, ulong timeMS);
-
-    /// <summary>
-    /// Decode some PCM data from the audio file.
-    /// </summary>
-    /// <param name="decoder">The decoder.</param>
-    /// <param name="buffer">The decoded PCM data good until the next call.</param>
-    /// <param name="size">The size in bytes of the buffer decoded.</param>
-    /// <returns>Returns true if we've reached the end of the file.</returns>
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_AudioDecoder_Decode", ExactSpelling = true)]
-    public static extern byte AudioDecoder_Decode(MGM_AudioDecoder* decoder, out byte* buffer, out uint size);
-
-    #endregion
-
-
     #region Video
 
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_VideoDecoder_Create", ExactSpelling = true, CallingConvention = CallingConvention.Cdecl)]
-    public static extern MGM_VideoDecoder* VideoDecoder_Create(MGG_GraphicsDevice* device, [MarshalAs(UnmanagedType.LPUTF8Str)] string filepath, out MGM_VideoDecoderInfo info);
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_Create", ExactSpelling = true, CallingConvention = CallingConvention.Cdecl)]
+    public static extern MGM_Video* Video_Create(MGG_GraphicsDevice* device, [MarshalAs(UnmanagedType.LPUTF8Str)] string filepath, out MGM_VideoInfo info);
 
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_VideoDecoder_Destroy", ExactSpelling = true)]
-    public static extern void VideoDecoder_Destroy(MGM_VideoDecoder* decoder);
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_Destroy", ExactSpelling = true)]
+    public static extern void Video_Destroy(MGM_Video* video);
 
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_VideoDecoder_GetAudioDecoder", ExactSpelling = true)]
-    public static extern MGM_AudioDecoder* VideoDecoder_GetAudioDecoder(MGM_VideoDecoder* decoder, out MGM_AudioDecoderInfo info);
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_Play", ExactSpelling = true)]
+    public static extern byte Video_Play(MGM_Video* song);
 
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_VideoDecoder_GetPosition", ExactSpelling = true)]
-    public static extern ulong VideoDecoder_GetPosition(MGM_VideoDecoder* decoder);
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_Pause", ExactSpelling = true)]
+    public static extern void Video_Pause(MGM_Video* song);
 
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_VideoDecoder_SetLooped", ExactSpelling = true)]
-    public static extern void VideoDecoder_SetLooped(MGM_VideoDecoder* decoder, byte looped);
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_Resume", ExactSpelling = true)]
+    public static extern void Video_Resume(MGM_Video* song);
 
-    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_VideoDecoder_Decode", ExactSpelling = true)]
-    public static extern MGG_Texture* VideoDecoder_Decode(MGM_VideoDecoder* decoder);
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_Stop", ExactSpelling = true)]
+    public static extern void Video_Stop(MGM_Video* song);
+
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_GetPosition", ExactSpelling = true)]
+    public static extern ulong Video_GetPosition(MGM_Video* video);
+
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_GetState", ExactSpelling = true)]
+    public static extern int Video_GetState(MGM_Video* video);
+
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_SetLooped", ExactSpelling = true)]
+    public static extern void Video_SetLooped(MGM_Video* video, byte looped);
+
+    [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_GetTexture", ExactSpelling = true)]
+    public static extern MGG_Texture* Video_GetTexture(MGM_Video* video);
 
     #endregion
 }

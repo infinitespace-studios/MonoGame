@@ -182,6 +182,17 @@ struct MGG_InputElement
     mguint InstanceDataStepRate;
 };
 
+struct MGP_NativeGraphicsHandles
+{
+    mgint Backend;
+    void* Instance;
+    void* PhysicalDevice;
+    void* LogicalDevice;
+    void* Queue;
+    mgint QueueFamilyIndex;
+    mgint QueueIndex;
+};
+
 struct MGM_SongInfo
 {
     mgulong duration;
@@ -201,6 +212,11 @@ struct MGM_AudioDecoderInfo
 };
 
 struct MGM_VideoDecoderInfo
+{
+
+};
+
+struct MGM_VideoInfo
 {
     mgint width;
     mgint height;
@@ -274,6 +290,19 @@ union {
 };
 #pragma pack(pop)
 
+struct MGP_WindowCreateInfo
+{
+    mgint RedSize;
+    mgint GreenSize;
+    mgint BlueSize;
+    mgint AlphaSize;
+    mgint FramebufferSrgbCapable;
+    mgint DepthSize;
+    mgint StencilSize;
+    mgint MultiSampleBuffers;
+    mgint MultiSampleSamples;
+};
+
 struct MGP_ControllerCaps
 {
     void* Identifier;
@@ -283,16 +312,5 @@ struct MGP_ControllerCaps
     mgbool HasLeftVibrationMotor;
     mgbool HasRightVibrationMotor;
     mgbool HasVoiceSupport;
-};
-
-struct MGP_NativeGraphicsHandles
-{
-    MGGraphicsBackend Backend;
-    void* Instance;
-    void* PhysicalDevice;
-    void* LogicalDevice;
-    void* Queue;
-    mgint QueueFamilyIndex;
-    mgint QueueIndex;
 };
 

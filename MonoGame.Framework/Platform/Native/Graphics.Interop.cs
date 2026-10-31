@@ -173,6 +173,18 @@ internal struct MGG_InputElement
     public uint InstanceDataStepRate;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+internal struct MGP_NativeGraphicsHandles
+{
+    public int Backend;
+    public nint Instance;
+    public nint PhysicalDevice;
+    public nint LogicalDevice;
+    public nint Queue;
+    public int QueueFamilyIndex;
+    public int QueueIndex;
+}
+
 internal enum TextureType
 {
     _2D,
@@ -506,18 +518,6 @@ internal static unsafe partial class MGG
     #endregion
 
     #region Native Interop
-
-    [StructLayout(LayoutKind.Sequential)]
-    internal struct MGP_NativeGraphicsHandles
-    {
-        public int Backend;
-        public nint Instance;
-        public nint PhysicalDevice;
-        public nint LogicalDevice;
-        public nint Queue;
-        public int QueueFamilyIndex;
-        public int QueueIndex;
-    }
 
     [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGG_GraphicsDevice_GetNativeHandles", ExactSpelling = true)]
     public static extern void GraphicsDevice_GetNativeHandles(
