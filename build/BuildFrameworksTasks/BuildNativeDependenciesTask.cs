@@ -141,7 +141,7 @@ endian = 'little'
         var autoReConfArgs = new ProcessArgumentBuilder();
         autoReConfArgs.Append("--install");
         autoReConfArgs.Append(context.MakeAbsoluteForDocker(new DirectoryPath(nestEggSrcDir)).FullPath);
-        RunAutoReConf(context, autoReConfArgs, "");
+        RunAutoReConf(context, nestEggBuildDir, autoReConfArgs, "");
         var configureArgs = new ProcessArgumentBuilder();
         configureArgs.Append("--enable-static");
         configureArgs.Append("--disable-shared");
@@ -149,14 +149,18 @@ endian = 'little'
         {
             configureArgs.Append(arg);
         }
-        RunConfigure(context, nestEggSrcDir, nestEggBuildDir, configureArgs, "", new Dictionary<string, string>()
+        var environmentVariables = new Dictionary<string, string>()
         {
-            {"CC", "clang"},
-            {"CFLAGS", $"-O2 -arch {targetArch}"},
-            {"LDFLAGS", $"-arch {targetArch}"},
-        });
+            {"CC", "clang"}
+        };
+        if (context.Environment.Platform.Family == PlatformFamily.OSX)
+        {
+            environmentVariables.Add("CFLAGS", $"-O2 -arch {targetArch}");
+            environmentVariables.Add("LDFLAGS", $"-arch {targetArch}");
+        }
+        RunConfigure(context, context.MakeAbsoluteForDocker(new DirectoryPath(nestEggSrcDir)).FullPath, context.MakeAbsoluteForDocker(new DirectoryPath(nestEggBuildDir)).FullPath, configureArgs, "", environmentVariables);
         var makeArgs = new ProcessArgumentBuilder();
-        RunMake(context, nestEggBuildDir, makeArgs, "");
+        RunMake(context, context.MakeAbsoluteForDocker(new DirectoryPath(nestEggBuildDir)).FullPath, makeArgs, "");
     }
 
     private void BuildSDL2(BuildContext context, string targetArch)
@@ -251,9 +255,9 @@ endian = 'little'
         }
     }
 
-    private void RunAutoReConf(BuildContext context, ProcessArgumentBuilder args, string errorMessage)
+    private void RunAutoReConf(BuildContext context, string workingDirectory, ProcessArgumentBuilder args, string errorMessage)
     {
-        if (context.StartProcessWithDocker("autoreconf", "", args) != 0)
+        if (context.StartProcessWithDocker("autoreconf", workingDirectory, args) != 0)
         {
             throw new Exception(errorMessage);
         }
