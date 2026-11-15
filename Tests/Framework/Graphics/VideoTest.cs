@@ -10,7 +10,7 @@ namespace MonoGame.Tests.Graphics;
 
 [NonParallelizable]
 [RunOnUiTestFixture]
-class VideotTest : GraphicsDeviceTestFixtureBase
+class VideoTest : GraphicsDeviceTestFixtureBase
 {
     [Test]
     public void Video_CanBeCreated()
