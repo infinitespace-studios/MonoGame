@@ -18,6 +18,9 @@ class VideoPlayerTests : GraphicsDeviceTestFixtureBase
         WithPlayer((player) =>
         {
             Assert.AreEqual(MediaState.Stopped, player.State);
+            Assert.IsFalse(player.IsDisposed);
+            Assert.IsFalse(player.IsLooped);
+            Assert.IsFalse(player.IsMuted);
         });
     }
 
@@ -27,6 +30,24 @@ class VideoPlayerTests : GraphicsDeviceTestFixtureBase
         WithPlayer((player) =>
         {
             Assert.AreEqual(TimeSpan.Zero, player.PlayPosition);
+        });
+    }
+
+    [Test]
+    public void DefaultVolumeIsOne()
+    {
+        WithPlayer((player) =>
+        {
+            Assert.AreEqual(1.0f, player.Volume);
+        });
+    }
+
+    [Test]
+    public void DefaultVideoIsNull()
+    {
+        WithPlayer((player) =>
+        {
+            Assert.IsNull(player.Video);
         });
     }
 
