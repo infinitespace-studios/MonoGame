@@ -13,14 +13,16 @@ namespace MonoGame.Tests.Graphics;
 class VideoTest : GraphicsDeviceTestFixtureBase
 {
     [Test]
-    public void Video_CanBeCreated()
+    [TestCase("video_h264_1280x720_5s", 60, "00:00:05.0160000", 1280, 720)]
+    [TestCase("video_h264_1280x720_15s", 60, "00:00:15.0160000", 2560, 1440)]
+    public void Video_CanBeCreated(string videoFile, int fps, string duration, int width, int height)
     {
-        var video = LoadVideo("video_h264_1280x720_5s");
+        var video = LoadVideo(videoFile);
         Assert.IsNotNull(video);
-        Assert.AreEqual(60, video.FramesPerSecond);
-        Assert.AreEqual(TimeSpan.Parse("00:00:05.0160000"), video.Duration);
-        Assert.AreEqual(720, video.Height);
-        Assert.AreEqual(1280, video.Width);
+        Assert.AreEqual(fps, video.FramesPerSecond);
+        Assert.AreEqual(TimeSpan.Parse(duration), video.Duration);
+        Assert.AreEqual(height, video.Height);
+        Assert.AreEqual(width, video.Width);
     }
 
     private Video LoadVideo(string filename)
