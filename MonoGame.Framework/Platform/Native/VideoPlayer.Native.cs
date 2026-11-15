@@ -17,42 +17,37 @@ public sealed partial class VideoPlayer : IDisposable
 
     private Texture2D PlatformGetTexture()
     {
-        return _currentVideo.GetTexture();
+        return _currentVideo?.GetTexture() ?? null;
     }
 
     private void PlatformGetState(ref MediaState result)
     {
-        if (_currentVideo == null)
-        {
-            result = MediaState.Stopped;
-            return;
-        }
-        result = _currentVideo.State;
+        result = _currentVideo?.State ?? MediaState.Stopped;
     }
 
     private void PlatformPause()
     {
-        _currentVideo.Pause();
+        _currentVideo?.Pause();
     }
 
     private void PlatformResume()
     {
-        _currentVideo.Resume();
+        _currentVideo?.Resume();
     }
 
     private void PlatformPlay()
     {
-        _currentVideo.Play();
+        _currentVideo?.Play();
     }
 
     private void PlatformStop()
     {
-        _currentVideo.Stop();
+        _currentVideo?.Stop();
     }
 
     private TimeSpan PlatformGetPlayPosition()
     {
-        return _currentVideo.Position;
+        return _currentVideo?.Position ?? TimeSpan.Zero;
     }
 
     private void PlatformSetIsLooped()

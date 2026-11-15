@@ -21,6 +21,15 @@ class VideoPlayerTests : GraphicsDeviceTestFixtureBase
         });
     }
 
+    [Test]
+    public void DefaultPositionIsZero()
+    {
+        WithPlayer((player) =>
+        {
+            Assert.AreEqual(TimeSpan.Zero, player.PlayPosition);
+        });
+    }
+
     void WithPlayer(Action<VideoPlayer> action)
     {
         var player = new VideoPlayer();
