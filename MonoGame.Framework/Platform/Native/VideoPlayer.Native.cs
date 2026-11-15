@@ -12,6 +12,7 @@ public sealed partial class VideoPlayer : IDisposable
     private void PlatformInitialize()
     {
         // Nothing to do... the Video does the work.
+        _currentVideo = null;
     }
 
     private Texture2D PlatformGetTexture()
@@ -21,6 +22,11 @@ public sealed partial class VideoPlayer : IDisposable
 
     private void PlatformGetState(ref MediaState result)
     {
+        if (_currentVideo == null)
+        {
+            result = MediaState.Stopped;
+            return;
+        }
         result = _currentVideo.State;
     }
 

@@ -14,9 +14,9 @@ namespace MonoGame.Tests.Graphics;
 class VideoTest : GraphicsDeviceTestFixtureBase
 {
     [Test]
-    [TestCase("video_h264_1280x720_5s", 60, "00:00:05.0160000", 1280, 720)]
-    [TestCase("video_h264_2560x1440_15s", 60, "00:00:15.0180000", 2560, 1440)]
-    public void Video_CanBeCreated(string videoFile, int fps, string duration, int width, int height)
+    [TestCase("video_h264_1280x720_5s", 60, "00:00:05.0160000", 1280, 720, VideoSoundtrackType.Music)]
+    [TestCase("video_h264_2560x1440_15s", 60, "00:00:15.0180000", 2560, 1440, VideoSoundtrackType.Music)]
+    public void Video_CanBeCreated(string videoFile, int fps, string duration, int width, int height, VideoSoundtrackType vstype)
     {
         var video = LoadVideo(videoFile);
         Assert.IsNotNull(video);
@@ -24,6 +24,7 @@ class VideoTest : GraphicsDeviceTestFixtureBase
         Assert.AreEqual(TimeSpan.Parse(duration, CultureInfo.InvariantCulture), video.Duration);
         Assert.AreEqual(height, video.Height);
         Assert.AreEqual(width, video.Width);
+	Assert.AreEqual(vstype, video.VideoSoundtrackType);
     }
 
     private Video LoadVideo(string filename)
