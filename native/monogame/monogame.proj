@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.Build.NoTargets/3.7.0" DefaultTarget="Build">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Configuration>Release</Configuration>
+    <NativeConfig Condition=" '$(Configuration)' == 'Release' ">release</NativeConfig>
+    <NativeConfig Condition=" '$(NativeConfig)' == '' ">debug</NativeConfig>
+  </PropertyGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <ProjectReference Include="desktopvk.vcxproj" />
+    <ProjectReference Include="desktopgl4.vcxproj" />
+    <ProjectReference Include="windowsdx.vcxproj" />
+  </ItemGroup>
+  <Target Name="BuildNative" BeforeTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux')) or $([MSBuild]::IsOSPlatform('MacOS'))">
+    <Exec Command="make -f desktopvk.make config=$(NativeConfig)" />
+    <Exec Command="make -f desktopgl4.make config=$(NativeConfig)" />
+  </Target>
+</Project>
