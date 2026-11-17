@@ -34,6 +34,16 @@ struct MGG_Texture;
 #include <api_MG_Asset.h>
 //#endif
 
+struct MGM_AudioDecoderInfo
+{
+    mgint samplerate;
+    mgint channels;
+    mgulong duration;
+};
+
+struct MGM_VideoDecoderInfo
+{
+};
 
 void MGM_ReadSignature(const char* filepath, uint8_t* signature)
 {
@@ -326,6 +336,7 @@ struct MGM_Video
 	MGM_VideoContainer* videoContainer = nullptr;
 	mgbool looped = false;
 	mgulong duration = 0;
+	MGMediaState state = MGMediaState::Stopped;
 	MGM_AudioDecoderInfo audioInfo;
 	MGM_VideoDecoderInfo videoInfo;
 	std::thread decoderThread;
@@ -758,31 +769,37 @@ void MGM_Video_Destroy(MGM_Video* video)
 mgbyte MGM_Video_Play(MGM_Video* video)
 {
 	assert(video != nullptr);
-	video->decoderThread = std::thread(MGM_Video_DecodeStream, video, 0);
+	//video->decoderThread = std::thread(MGM_Video_DecodeStream, video, 0);
+	video->state = MGMediaState::Playing;
 	return 0;
 }
 
 void MGM_Video_Pause(MGM_Video* video)
 {
 	assert(video != nullptr);
+	video->state = MGMediaState::Paused;
 }
 void MGM_Video_Resume(MGM_Video* video)
 {
 	assert(video != nullptr);
+	video->state = MGMediaState::Playing;
 }
 void MGM_Video_Stop(MGM_Video* video)
 {
 	assert(video != nullptr);
+	video->state = MGMediaState::Stopped;
 }
 mgulong MGM_Video_GetPosition(MGM_Video* video)
 {
 	assert(video != nullptr);
 	return MGM_VideoDecoder_GetPosition(video->videoDecoder);
 }
-mgint MGM_Video_GetState(MGM_Video* video)
+MGMediaState MGM_Video_GetState(MGM_Video* video)
 {
+	if (video == nullptr)
+		return MGMediaState::Stopped;
 	assert(video != nullptr);
-	return 0;
+	return video->state;
 }
 void MGM_Video_SetLooped(MGM_Video* video, mgbyte looped)
 {

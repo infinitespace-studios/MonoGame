@@ -4,7 +4,7 @@
 
 using System;
 using System.Runtime.InteropServices;
-
+using Microsoft.Xna.Framework.Media;
 
 namespace MonoGame.Interop;
 
@@ -37,25 +37,6 @@ struct MGM_SongEvent
     public SongEventType type;
     public ulong generation;
 }
-
-struct MGM_AudioDecoderInfo
-{
-    /// <summary>
-    /// The audio samples per second, per channel.
-    /// </summary>
-    public int samplerate;
-
-    /// <summary>
-    /// The number of audio channels (typically 1 or 2).
-    /// </summary>
-    public int channels;
-
-    /// <summary>
-    /// The estimated duration of the audio in milliseconds.
-    /// </summary>
-    public ulong duration;
-}
-
 
 struct MGM_VideoInfo
 {
@@ -141,7 +122,7 @@ internal static unsafe partial class MGM
     public static extern ulong Video_GetPosition(MGM_Video* video);
 
     [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_GetState", ExactSpelling = true)]
-    public static extern int Video_GetState(MGM_Video* video);
+    public static extern MediaState Video_GetState(MGM_Video* video);
 
     [DllImport(MGP.MonoGameNativeDLL, EntryPoint = "MGM_Video_SetLooped", ExactSpelling = true)]
     public static extern void Video_SetLooped(MGM_Video* video, byte looped);

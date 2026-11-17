@@ -204,18 +204,6 @@ struct MGM_SongEvent
     mgulong generation;
 };
 
-struct MGM_AudioDecoderInfo
-{
-    mgint samplerate;
-    mgint channels;
-    mgulong duration;
-};
-
-struct MGM_VideoDecoderInfo
-{
-
-};
-
 struct MGM_VideoInfo
 {
     mgint width;

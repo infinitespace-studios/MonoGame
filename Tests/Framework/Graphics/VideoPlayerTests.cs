@@ -51,6 +51,22 @@ class VideoPlayerTests : GraphicsDeviceTestFixtureBase
         });
     }
 
+    [Test]
+    public void LoadedVideoReturnsCorrectPosition()
+    {
+        WithPlayer((player)=>
+        {
+            var video = LoadVideo("video_h264_1280x720_5s");
+            Assert.IsNotNull(video);
+            player.Play(video);
+            Assert.AreEqual(MediaState.Playing, player.State);
+            player.Pause();
+            Assert.AreEqual(MediaState.Paused, player.State);
+            player.Stop();
+            Assert.AreEqual(MediaState.Stopped, player.State);
+        });
+    }
+
     void WithPlayer(Action<VideoPlayer> action)
     {
         var player = new VideoPlayer();
@@ -62,5 +78,10 @@ class VideoPlayerTests : GraphicsDeviceTestFixtureBase
         {
             player.Dispose();
         }
+    }
+
+    private Video LoadVideo(string filename)
+    {
+        return content.Load<Video>(Paths.Video(filename));
     }
 }

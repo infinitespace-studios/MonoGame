@@ -4,6 +4,7 @@
 
 using System;
 using System.IO;
+using Microsoft.Xna.Framework.Graphics;
 
 namespace Microsoft.Xna.Framework.Media
 {
@@ -13,6 +14,7 @@ namespace Microsoft.Xna.Framework.Media
     public sealed partial class Video : IDisposable
 	{
 		private bool _disposed;
+        private GraphicsDevice _graphicsDevice;
 
 		#region Public API
 
@@ -50,14 +52,10 @@ namespace Microsoft.Xna.Framework.Media
 
         #region Internal API
 
-        internal Video(string fileName, float durationMS) :
-            this(fileName)
+        internal Video(GraphicsDevice graphicsDevice, string fileName, float durationMS)
         {
+            _graphicsDevice = graphicsDevice;
             Duration = TimeSpan.FromMilliseconds(durationMS);
-        }
-
-        internal Video(string fileName)
-        {
             FileName = fileName;
 
             PlatformInitialize();

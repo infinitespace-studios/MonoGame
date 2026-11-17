@@ -5,6 +5,7 @@
 using System;
 using System.Threading;
 using System.Collections.Concurrent;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using MonoGame.Interop;
@@ -16,6 +17,7 @@ public sealed partial class Video : IDisposable
 {
     private unsafe MGM_Video* _video;
     private unsafe MGA_Voice* _voice;
+    private unsafe MGM_VideoInfo _videoInfo;
     private bool _looped;
     private bool _muted;
     private float _volume = 1.0f;
@@ -25,11 +27,17 @@ public sealed partial class Video : IDisposable
         var absolutePath = MGP.Platform_MakePath(TitleContainer.Location, FileName);
         // Unsupported
         VideoSoundtrackType = VideoSoundtrackType.MusicAndDialog;
+        _video = MGM.Video_Create(_graphicsDevice.Handle, absolutePath, out _videoInfo);
     }
 
     private unsafe void PlatformDispose(bool disposing)
     {
         Stop();
+        if (_video != null)
+        {
+            MGM.Video_Destroy(_video);
+            _video = null;
+        }
     }
 
     internal unsafe Texture2D GetTexture()
